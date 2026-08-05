@@ -38,3 +38,23 @@ git add -A && git commit -m "update skills" && git push
 Drop the file in the matching directory, commit, push, and run
 `./sync.sh install` on machines using copy mode (symlink mode needs a rerun
 only when a new top-level entry appears).
+
+## OpenRouter / DeepSeek execution tier
+
+`skills/openrouter` + `skills/orchestrate-deepseek` + `agents/deepseek-worker.md`
+add a cheap delegation tier: DeepSeek workers (via OpenRouter) execute mechanical
+packets at ~2% of premium-model rates, dispatched either as one-shot "oracles",
+fully agentic headless Claude Code workers, native chaperone agents, or MCP tools
+in Claude Desktop.
+
+One-command setup on a new machine (after `./sync.sh install`):
+
+```sh
+~/.claude/skills/openrouter/setup.sh sk-or-v1-<your-openrouter-key>
+```
+
+That checks dependencies, stores the key in the macOS Keychain, starts the local
+LiteLLM gateway, and registers the Claude Desktop MCP server. Re-run any time —
+it's idempotent. Details in `skills/openrouter/SKILL.md`. macOS-only as written
+(Keychain + Desktop paths); on Linux export `OPENROUTER_API_KEY` instead and
+skip Desktop.

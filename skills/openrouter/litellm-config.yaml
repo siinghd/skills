@@ -1,0 +1,14 @@
+# LiteLLM gateway config for the openrouter skill.
+# Wildcard passthrough: any model id requested by Claude Code (e.g.
+# "deepseek/deepseek-v4-pro") is routed to OpenRouter as "openrouter/<id>",
+# so new models work without editing this file.
+model_list:
+  - model_name: "*"
+    litellm_params:
+      model: "openrouter/*"
+      api_key: os.environ/OPENROUTER_API_KEY
+
+litellm_settings:
+  # Anthropic-format requests carry params some providers reject; drop them
+  # instead of erroring so Claude Code workers keep functioning.
+  drop_params: true

@@ -65,7 +65,10 @@ capture() {
       # Only pull back entries the repo already tracks, and skip symlinks
       # (those already point into the repo).
       if [[ -e "$dest" && ! -L "$dest" ]]; then
-        rsync -a --delete --exclude='.DS_Store' "$dest" "${REPO_DIR}/${dir}/"
+        # Exclude runtime artifacts (openrouter skill: worker logs, gateway state).
+        rsync -a --delete --exclude='.DS_Store' \
+          --exclude='runs/' --exclude='.proxy.log' --exclude='.proxy.pid' \
+          "$dest" "${REPO_DIR}/${dir}/"
         echo "captured ${dir}/${name}"
       fi
     done
