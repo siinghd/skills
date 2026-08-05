@@ -53,8 +53,11 @@ One-command setup on a new machine (after `./sync.sh install`):
 ~/.claude/skills/openrouter/setup.sh sk-or-v1-<your-openrouter-key>
 ```
 
-That checks dependencies, stores the key in the macOS Keychain, starts the local
-LiteLLM gateway, and registers the Claude Desktop MCP server. Re-run any time —
-it's idempotent. Details in `skills/openrouter/SKILL.md`. macOS-only as written
-(Keychain + Desktop paths); on Linux export `OPENROUTER_API_KEY` instead and
-skip Desktop.
+That checks dependencies, stores the key via the platform's best backend
+(macOS Keychain, Linux Secret Service if available, else a 0600 key file),
+starts the local LiteLLM gateway, and registers the Claude Desktop MCP server
+with the per-OS config path. Re-run any time — it's idempotent. Details in
+`skills/openrouter/SKILL.md`. Works on macOS, Linux (including WSL), and
+Windows under Git Bash/MSYS2 — these are bash scripts, so native
+cmd.exe/PowerShell is not supported. On Windows the key file is not encrypted
+at rest; WSL is the recommended route for full parity.

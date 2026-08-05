@@ -11,11 +11,7 @@ All scripts live in this skill's `scripts/` directory. Resolve it as:
 
 ## API key (never inline it)
 
-Key resolution order, handled inside every script: `$OPENROUTER_API_KEY` env var, then macOS Keychain item `openrouter-api-key`. Never paste a key into a prompt, file, or command line. If no key resolves, the scripts exit 3 with setup instructions; relay those to the user — the Keychain one-liner is:
-
-```bash
-security add-generic-password -s openrouter-api-key -a openrouter -w '<key>'
-```
+Key resolution order, handled identically on every platform by the shared `scripts/or-common.sh` (sourced by the scripts that need a key — `or-chat.sh`, `or-proxy.sh`, `setup.sh`): `$OPENROUTER_API_KEY` env var, then OS keyring (macOS Keychain item `openrouter-api-key` via `security`; Linux Secret Service via `secret-tool` if on PATH, non-fatal if missing; Windows skipped), then a plain 0600 key file at `${XDG_CONFIG_HOME:-$HOME/.config}/openrouter/key` on macOS/Linux or `${APPDATA:-$HOME/AppData/Roaming}/openrouter/key` on Windows. Never paste a key into a prompt, file, or command line. If no key resolves, the scripts exit 3 with per-OS setup instructions; relay those to the user. `setup.sh <key>` stores it via the best backend for the platform. On Windows the key file is not encrypted at rest (no DPAPI/Credential Manager integration); WSL is the recommended Windows route for full parity.
 
 Sanity check: `$OR/or-chat.sh key-check` (prints label + usage on success).
 
@@ -91,7 +87,7 @@ Prefer launching DeepSeek workers through the `deepseek-worker` agent (Agent too
 
 ## Claude Desktop bridge
 
-`mcp/server.py` exposes this skill to the Claude Desktop chat app as MCP tools (`deepseek_chat`, `deepseek_worker_start`/`_check` with a start→poll contract, `deepseek_runs_list`, `openrouter_gateway`), registered in `~/Library/Application Support/Claude/claude_desktop_config.json` as `deepseek-openrouter` (runs via `uv run --with mcp`). Workers dispatched from Desktop land in the same `runs/` directory, so `or-monitor.sh` and this session see them too.
+`mcp/server.py` exposes this skill to the Claude Desktop chat app as MCP tools (`deepseek_chat`, `deepseek_worker_start`/`_check` with a start→poll contract, `deepseek_runs_list`, `openrouter_gateway`), registered as `deepseek-openrouter` in the per-OS Desktop config (`~/Library/Application Support/Claude/` on macOS, `%APPDATA%/Claude/` on Windows, `${XDG_CONFIG_HOME:-~/.config}/Claude/` on Linux) (runs via `uv run --with mcp`). Workers dispatched from Desktop land in the same `runs/` directory, so `or-monitor.sh` and this session see them too.
 
 ## Caveats
 

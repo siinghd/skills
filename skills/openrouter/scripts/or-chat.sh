@@ -11,20 +11,11 @@
 #
 # The prompt is read from a file argument, or stdin when the argument is "-" or omitted.
 # Assistant content goes to stdout; token usage and errors go to stderr.
-# Key resolution: $OPENROUTER_API_KEY, else macOS Keychain item "openrouter-api-key".
+# Key resolution: $OPENROUTER_API_KEY, then OS keyring (macOS Keychain / Linux secret-tool), then 0600 key file.
 set -euo pipefail
 
-resolve_key() {
-  if [ -n "${OPENROUTER_API_KEY:-}" ]; then
-    printf '%s' "$OPENROUTER_API_KEY"
-  else
-    security find-generic-password -s openrouter-api-key -w 2>/dev/null || {
-      echo "ERROR: no OpenRouter key. Set OPENROUTER_API_KEY or run:" >&2
-      echo "  security add-generic-password -s openrouter-api-key -a openrouter -w '<key>'" >&2
-      exit 3
-    }
-  fi
-}
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$SCRIPT_DIR/or-common.sh"
 
 cmd="${1:-}"
 case "$cmd" in
@@ -38,7 +29,7 @@ case "$cmd" in
     ;;
 
   key-check)
-    key="$(resolve_key)"
+    key="$(or_resolve_key)"
     # No -f: a 401 body carries the diagnosis, which is the whole point here.
     resp="$(curl -s --max-time 30 -H "Authorization: Bearer $key" https://openrouter.ai/api/v1/key)"
     if jq -e '.data' <<<"$resp" >/dev/null 2>&1; then
@@ -77,7 +68,7 @@ case "$cmd" in
     fi
     [ -n "$prompt" ] || { echo "ERROR: empty prompt" >&2; exit 2; }
 
-    key="$(resolve_key)"
+    key="$(or_resolve_key)"
 
     payload="$(jq -n \
       --arg model "$model" \

@@ -1,22 +1,32 @@
 #!/usr/bin/env bash
 # setup.sh — one-command setup for the OpenRouter/DeepSeek execution tier.
 #
+# Supports macOS, Linux (including WSL, the recommended Windows route) and
+# Windows under Git Bash/MSYS2. These are all bash scripts, so native
+# cmd.exe/PowerShell is NOT supported.
+#
 # Usage:
 #   ./setup.sh                     # interactive (prompts for key if missing)
 #   ./setup.sh sk-or-v1-...        # non-interactive, stores the key
 #   ./setup.sh --no-desktop        # skip Claude Desktop MCP registration
+#   ./setup.sh --help              # show this usage block
 #
 # Idempotent — safe to re-run any time. Verifies every step it performs.
 set -euo pipefail
 
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS="$SKILL_DIR/scripts"
+# Shared, OS-aware helpers (os detection, key storage). Written by its own
+# packet — we only consume its contract, never create or edit it.
+. "$SCRIPTS/or-common.sh"
 DESKTOP=true
 KEY_ARG=""
 
 for arg in "$@"; do
   case "$arg" in
     --no-desktop) DESKTOP=false ;;
+    --help|-h)
+      sed -n '2,14p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     sk-or-*) KEY_ARG="$arg" ;;
     *) echo "unknown argument: $arg (expected an sk-or-... key or --no-desktop)" >&2; exit 2 ;;
   esac
@@ -26,12 +36,26 @@ step() { printf '\n\033[1m== %s\033[0m\n' "$1"; }
 ok()   { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31m✗\033[0m %s\n' "$1" >&2; exit 1; }
 
+# Detect the platform once and report it; everything below branches on it.
+OS="$(or_os)"
+step "Platform"
+ok "detected: $OS"
+
 step "Dependencies"
-for bin in claude jq curl uvx security; do
+# Required on every platform. We build the list dynamically because the
+# set differs per OS rather than writing three near-identical loops.
+bins=( claude jq curl uvx )
+[ "$OS" = macos ] && bins+=( security )
+for bin in "${bins[@]}"; do
   command -v "$bin" >/dev/null 2>&1 || fail "$bin not found on PATH$( [ "$bin" = uvx ] && echo ' — install uv: https://docs.astral.sh/uv/' )"
 done
 ok "claude $(claude --version 2>/dev/null | head -1)"
-ok "uvx, jq, curl, security present"
+ok "${bins[*]} present on $OS"
+# Linux: secret-tool is optional. Its absence is not fatal — the key simply
+# falls back to a 0600 file, so warn rather than die so setup still succeeds.
+if [ "$OS" = linux ] && ! command -v secret-tool >/dev/null 2>&1; then
+  echo "  - secret-tool not found; the key will be stored in $(or_key_file) (0600) instead of the secret service"
+fi
 
 step "Scripts executable"
 chmod +x "$SCRIPTS"/*.sh
@@ -39,15 +63,13 @@ ok "chmod +x scripts/*.sh"
 
 step "OpenRouter API key"
 if [ -n "$KEY_ARG" ]; then
-  security add-generic-password -U -s openrouter-api-key -a openrouter -w "$KEY_ARG"
-  ok "stored in macOS Keychain (item: openrouter-api-key)"
+  or_store_key "$KEY_ARG"
 elif ! "$SCRIPTS/or-chat.sh" key-check >/dev/null 2>&1; then
   if [ -t 0 ]; then
     printf '  enter your OpenRouter API key (input hidden): '
     read -rs key; echo
     [ -n "$key" ] || fail "no key provided"
-    security add-generic-password -U -s openrouter-api-key -a openrouter -w "$key"
-    ok "stored in macOS Keychain"
+    or_store_key "$key"
   else
     fail "no key found — re-run with the key as an argument: ./setup.sh sk-or-v1-<key>"
   fi
@@ -58,21 +80,47 @@ step "LiteLLM gateway"
 "$SCRIPTS/or-proxy.sh" start | sed 's/^/  /'
 
 step "Claude Desktop MCP registration"
-CFG="$HOME/Library/Application Support/Claude/claude_desktop_config.json"
+# Desktop ships an app-specific config path per OS.
+case "$OS" in
+  macos)   CFG="$HOME/Library/Application Support/Claude/claude_desktop_config.json" ;;
+  windows) CFG="${APPDATA:-$HOME/AppData/Roaming}/Claude/claude_desktop_config.json" ;;
+  linux)   CFG="${XDG_CONFIG_HOME:-$HOME/.config}/Claude/claude_desktop_config.json" ;;
+esac
 if ! $DESKTOP; then
   echo "  - skipped (--no-desktop)"
 elif [ ! -f "$CFG" ]; then
   echo "  - Claude Desktop config not found; skipping (install the app, then re-run)"
 else
-  # Prefer the real uv binary over a pyenv shim: Desktop's spawn environment
-  # may lack the PATH the shim needs.
-  UV_BIN="$(pyenv which uv 2>/dev/null || command -v uv 2>/dev/null || true)"
-  [ -n "$UV_BIN" ] || fail "uv not found (uvx exists but uv doesn't?)"
-  cp "$CFG" "$CFG.bak-$(date +%Y%m%d-%H%M%S)"
-  jq --arg uv "$UV_BIN" --arg srv "$SKILL_DIR/mcp/server.py" \
-    '.mcpServers["deepseek-openrouter"] = {command: $uv, args: ["run", "--with", "mcp", "python", $srv]}' \
-    "$CFG" > "$CFG.tmp" && mv "$CFG.tmp" "$CFG"
-  ok "registered deepseek-openrouter (fully restart Claude Desktop to load it)"
+    # Prefer the real uv binary over a pyenv shim: Desktop's spawn environment
+    # may lack the PATH the shim needs.
+    UV_BIN="$(pyenv which uv 2>/dev/null || command -v uv 2>/dev/null || true)"
+    SRV="$SKILL_DIR/mcp/server.py"
+    # Check before any path translation: cygpath on an empty string would emit a
+    # raw error instead of this explanatory failure.
+    [ -n "$UV_BIN" ] || fail "uv not found (uvx exists but uv doesn't?)"
+    # Windows Desktop is a native app and cannot read MSYS-style paths like
+    # /c/Users/..., so convert both paths to native form. Without cygpath there
+    # is no way to translate, so skip registration rather than write broken paths.
+    if [ "$OS" = windows ]; then
+      if command -v cygpath >/dev/null 2>&1; then
+        UV_BIN="$(cygpath -w "$UV_BIN")"
+        SRV="$(cygpath -w "$SRV")"
+      else
+        # No translation = the native app would get MSYS paths it can't read,
+        # so skip straight past registration but still finish the script.
+        SKIP_DESKTOP=true
+      fi
+    fi
+    if [ -z "${SKIP_DESKTOP:-}" ]; then
+      cp "$CFG" "$CFG.bak-$(date +%Y%m%d-%H%M%S)"
+      jq --arg uv "$UV_BIN" --arg srv "$SRV" \
+        '.mcpServers["deepseek-openrouter"] = {command: $uv, args: ["run", "--with", "mcp", "python", $srv]}' \
+        "$CFG" > "$CFG.tmp" && mv "$CFG.tmp" "$CFG"
+      ok "registered deepseek-openrouter (fully restart Claude Desktop to load it)"
+    else
+      echo "  - cygpath not found; cannot translate paths for native Claude Desktop — skipping registration"
+      echo "    (use WSL for full parity, or install MSYS2 with cygpath)"
+    fi
 fi
 
 step "Ready — cheatsheet"
