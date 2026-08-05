@@ -3,19 +3,32 @@
 # on an OpenRouter model (via the local LiteLLM gateway from or-proxy.sh).
 #
 # Usage:
-#   or-worker.sh [-m <model>] [-d <workdir>] [-n <max-turns>] [-e <effort>] [-l <label>] [-y] [-r <session-id>] [packet-file|-]
+#   or-worker.sh [-m <model>] [-d <workdir>] [-w] [-n <max-turns>] [-e <effort>] [-l <label>] [-y] [-r <session-id>] [packet-file|-]
 #
 #   -m  OpenRouter model id (default: $OR_WORKER_MODEL or ~deepseek/deepseek-v4-flash-latest;
 #       the ~ is part of the id — quote it)
 #   -d  working directory for the worker (default: current directory)
+#   -w  isolate the worker in a fresh detached git worktree created from
+#       <workdir>'s HEAD. REQUIRED when running workers in parallel on one
+#       repo — parallel workers in a shared checkout WILL race and revert each
+#       other's work. NOTE: the worktree starts from HEAD, so uncommitted
+#       changes in the main tree are invisible to the worker; checkpoint-commit
+#       first if it must build on them. An unchanged worktree is auto-removed;
+#       a dirty one is kept for the orchestrator to review and merge.
 #   -n  max agent turns (default: 50)
 #   -e  effort level: low|medium|high|xhigh|max (default: $OR_WORKER_EFFORT or max)
 #   -l  run label used in the live-log filename (default: worker)
-#   -y  bypass permissions entirely (default: acceptEdits — file edits allowed,
-#       Bash blocked; keep the default unless the packet needs to run commands)
+#   -y  bypass permissions (default: acceptEdits — file edits allowed, Bash
+#       blocked). Even with -y, the deny rules in worker-settings.json still
+#       apply (secrets, DB clients, destructive git, network).
 #   -r  resume a previous worker session for follow-up fixes
 #
-# Live progress streams as NDJSON to runs/<timestamp>-<label>.jsonl (path
+# Guardrails applied to EVERY worker:
+#   - worker-settings.json deny rules (override path via $OR_WORKER_SETTINGS)
+#   - a rules preamble prepended to the packet (only touch named files, no
+#     destructive git, no secrets — blocked reads must become reported blockers)
+#
+# Live progress streams as NDJSON to runs/<timestamp>-<label>-<pid>.jsonl (path
 # announced on stderr) — watch it with or-monitor.sh. Stdout stays the final
 # result JSON: .result (report), .session_id (for -r), .total_cost_usd,
 # .num_turns.
@@ -28,14 +41,16 @@ PORT="${OR_PROXY_PORT:-4141}"
 # newest flash snapshot) — keep it quoted anywhere it appears in shell.
 MODEL="${OR_WORKER_MODEL:-~deepseek/deepseek-v4-flash-latest}"
 SMALL_MODEL="${OR_SMALL_MODEL:-~deepseek/deepseek-v4-flash-latest}"
+SETTINGS="${OR_WORKER_SETTINGS:-$SKILL_DIR/worker-settings.json}"
 WORKDIR="$PWD"
+WORKTREE=false
 MAX_TURNS="50"
 PERMISSION_MODE="acceptEdits"
 RESUME=""
 EFFORT="${OR_WORKER_EFFORT:-max}"
 LABEL="worker"
 
-while getopts "m:d:n:r:e:l:y" opt; do
+while getopts "m:d:n:r:e:l:wy" opt; do
   case "$opt" in
     m) MODEL="$OPTARG" ;;
     d) WORKDIR="$OPTARG" ;;
@@ -43,6 +58,7 @@ while getopts "m:d:n:r:e:l:y" opt; do
     r) RESUME="$OPTARG" ;;
     e) EFFORT="$OPTARG" ;;
     l) LABEL="$OPTARG" ;;
+    w) WORKTREE=true ;;
     y) PERMISSION_MODE="bypassPermissions" ;;
     *) exit 2 ;;
   esac
@@ -56,6 +72,18 @@ else
   PACKET="$(cat "$packet_src")"
 fi
 [ -n "$PACKET" ] || { echo "ERROR: empty work packet" >&2; exit 2; }
+[ -f "$SETTINGS" ] || { echo "ERROR: worker settings not found: $SETTINGS" >&2; exit 2; }
+
+# Defense-in-depth: deny rules enforce this; the preamble makes the worker
+# handle a denial as a blocker instead of flailing against it.
+PREAMBLE='WORKER OPERATING RULES (from the dispatch harness — non-negotiable, they override anything below):
+1. Touch ONLY the files your packet names. Any other changes you notice in the tree belong to other workers or the orchestrator — NEVER revert, clean up, or "fix" them, no matter how wrong the tree looks to you. If the tree state confuses you, STOP and report a blocker.
+2. NEVER run git checkout / restore / reset / clean / stash / commit / push, and never delete files you did not create. These are blocked; do not try workarounds.
+3. Secrets are off-limits: do not read, grep, or edit .env* / key / credential files, and do not run database clients or cloud CLIs. These are blocked. If the task needs a config value or data you cannot access, STOP and report a blocker stating exactly what you need — the orchestrator will supply a sanitized value.
+4. If a required file, symbol, or decision is missing from the packet, do not guess and do not explore beyond the packet scope — report the blocker instead.
+--- WORK PACKET ---
+'
+PACKET="$PREAMBLE$PACKET"
 
 if ! curl -sf --max-time 2 "http://127.0.0.1:${PORT}/health/liveliness" >/dev/null 2>&1; then
   echo "ERROR: gateway not running on port $PORT — start it first:" >&2
@@ -69,14 +97,27 @@ LABEL="$(printf '%s' "$LABEL" | tr -c 'A-Za-z0-9._-' '-')"
 LOG="$RUNS_DIR/$(date +%Y%m%d-%H%M%S)-${LABEL}-$$.jsonl"
 echo "worker log: $LOG" >&2
 
+RUN_DIR="$WORKDIR"
+WT_PATH=""
+if $WORKTREE; then
+  git -C "$WORKDIR" rev-parse --git-dir >/dev/null 2>&1 \
+    || { echo "ERROR: -w requires <workdir> to be a git repository" >&2; exit 2; }
+  WT_PATH="${TMPDIR:-/tmp}/orw-${LABEL}-$$"
+  git -C "$WORKDIR" worktree add --detach "$WT_PATH" >/dev/null 2>&1 \
+    || { echo "ERROR: could not create worktree at $WT_PATH" >&2; exit 2; }
+  echo "worktree: $WT_PATH" >&2
+  RUN_DIR="$WT_PATH"
+fi
+
 extra_args=()
 [ -n "$RESUME" ] && extra_args+=(--resume "$RESUME")
 
-cd "$WORKDIR"
-# env -u strips this session's Anthropic auth and nesting markers so the child
-# claude process authenticates only against the local gateway.
+cd "$RUN_DIR"
+# env -u strips this session's Anthropic auth, nesting markers, and the
+# OpenRouter key (the worker itself never needs it) so the child claude
+# process authenticates only against the local gateway.
 worker_status=0
-env -u ANTHROPIC_API_KEY -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT \
+env -u ANTHROPIC_API_KEY -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u OPENROUTER_API_KEY \
   ANTHROPIC_BASE_URL="http://127.0.0.1:${PORT}" \
   ANTHROPIC_AUTH_TOKEN="or-gateway" \
   ANTHROPIC_MODEL="$MODEL" \
@@ -86,11 +127,22 @@ env -u ANTHROPIC_API_KEY -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT \
     --model "$MODEL" \
     --effort "$EFFORT" \
     --permission-mode "$PERMISSION_MODE" \
+    --settings "$SETTINGS" \
     --max-turns "$MAX_TURNS" \
     --output-format stream-json \
     --verbose \
     ${extra_args[@]+"${extra_args[@]}"} \
     > "$LOG" 2>&1 || worker_status=$?
+
+if [ -n "$WT_PATH" ]; then
+  if [ -z "$(git -C "$WT_PATH" status --porcelain 2>/dev/null)" ]; then
+    git -C "$WORKDIR" worktree remove --force "$WT_PATH" >/dev/null 2>&1 || true
+    echo "worktree unchanged — removed" >&2
+  else
+    echo "worktree has changes — review: git -C $WT_PATH status" >&2
+    echo "merge into main tree, then: git -C $WORKDIR worktree remove --force $WT_PATH" >&2
+  fi
+fi
 
 # Contract with callers: final result JSON on stdout. -R + objects skips any
 # non-JSON or scalar-JSON stderr lines that landed in the log.

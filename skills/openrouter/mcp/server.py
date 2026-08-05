@@ -87,6 +87,7 @@ def deepseek_worker_start(
     model: str = "",
     resume_session: str = "",
     run_commands: bool = False,
+    isolate: bool = False,
 ) -> str:
     """Start an agentic DeepSeek worker (headless Claude Code with real tools:
     read/edit files in workdir) on a work packet. Returns immediately — poll
@@ -94,11 +95,22 @@ def deepseek_worker_start(
 
     The packet must be self-contained: objective, exact file paths, pasted
     context, explicit non-goals, acceptance criteria, required report shape.
-    The worker has no other context. run_commands=True lets it execute shell
-    commands (tests/builds); default allows only file edits. Pass
-    resume_session (a session_id from a previous check result) for follow-up
-    fixes in the same worker session. Requires the gateway (openrouter_gateway
-    'start' first).
+    The worker has no other context.
+
+    isolate=True runs the worker in its own git worktree — REQUIRED when
+    starting more than one worker on the same repo at once, because workers
+    sharing a checkout revert each other's work. The worktree starts from HEAD
+    (commit/stash first if the worker must build on uncommitted changes) and
+    its path is reported by deepseek_worker_check for you to review and merge.
+
+    run_commands=True lets it execute shell commands (tests/builds); default
+    allows only file edits. Either way the worker cannot read .env/key files,
+    run database or cloud CLIs, or run destructive git commands — if it reports
+    being blocked on a value, supply a sanitized value in a follow-up packet.
+    Pass resume_session (a session_id from a previous check result) for
+    follow-up fixes in the same worker session. Requires the gateway
+    (openrouter_gateway 'start' first). Always verify the resulting diff
+    yourself — worker reports have understated what they changed.
     """
     if not os.path.isdir(workdir):
         return f"ERROR: workdir does not exist: {workdir}"
@@ -110,6 +122,8 @@ def deepseek_worker_start(
         args += ["-r", resume_session]
     if run_commands:
         args += ["-y"]
+    if isolate:
+        args += ["-w"]
     fd, packet_path = tempfile.mkstemp(suffix=".md", prefix=f"packet-{label}-")
     with os.fdopen(fd, "w") as f:
         f.write(packet)

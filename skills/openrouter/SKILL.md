@@ -57,13 +57,27 @@ $OR/or-proxy.sh start      # once per machine session; idempotent. stop/status/l
 $OR/or-worker.sh -d /path/to/repo packet.md
 ```
 
-Worker flags: `-m` model (default `~deepseek/deepseek-v4-flash-latest`), `-d` workdir, `-n` max turns (default 50), `-e` effort low|medium|high|xhigh|max (default max, or `$OR_WORKER_EFFORT`; best-effort through the gateway — drop_params discards it where the model can't honor it), `-r <session-id>` to continue a previous worker (follow-up fixes — reuse, don't respawn), `-y` bypassPermissions (default is acceptEdits: edits allowed, Bash blocked — keep the default and let a verifier run commands, unless the packet genuinely needs to execute things).
+**Parallel workers on one repo MUST use `-w` (worktree isolation).** Workers sharing a checkout race: they see each other's half-finished edits, mistake them for their own overreach, and `git checkout` them away. This has destroyed completed work. `-w` gives each worker a detached worktree from HEAD (so commit or stash anything it must build on first); an unchanged worktree is auto-removed, a dirty one is kept for you to review and merge. Sequence workers instead only when they genuinely must build on each other.
+
+Worker flags: `-m` model (default `~deepseek/deepseek-v4-flash-latest`), `-d` workdir, `-w` worktree isolation, `-n` max turns (default 50), `-e` effort low|medium|high|xhigh|max (default max, or `$OR_WORKER_EFFORT`; best-effort through the gateway — drop_params discards it where the model can't honor it), `-r <session-id>` to continue a previous worker (follow-up fixes — reuse, don't respawn), `-y` bypassPermissions (default is acceptEdits: edits allowed, Bash blocked — keep the default and let a verifier run commands, unless the packet genuinely needs to execute things).
 
 Output is JSON: `.result` (worker's report), `.session_id` (for `-r`), `.total_cost_usd`, `.usage`. Extract with jq.
 
 Worker packets follow the same contract as /orchestrate packets: objective, exact files, pasted context it can't discover, acceptance criteria, required report shape. The worker shares none of your conversation context.
 
 Run long workers via Bash `run_in_background: true` and dispatch independent packets in parallel.
+
+## Worker guardrails (enforced, not advisory)
+
+Every worker runs under `worker-settings.json` (override via `$OR_WORKER_SETTINGS`) plus a rules preamble prepended to its packet. Verified by red-team probes 2026-08-05: the harness hard-denies these even under `-y`, returning "Permission to use Bash with command … has been denied" / "File is in a directory that is denied by your permission settings".
+
+- **Secrets are unreadable:** `.env*`, `*.key`, `*.pem`, SSH/AWS creds, `.npmrc`, `.netrc` — Read and Edit both denied (dotfile, wildcard-extension, and nested-path globs all confirmed matching).
+- **No database or cloud CLIs:** psql, mysql, mongosh, redis-cli, sqlite3, pg_dump, heroku, aws, az, gcloud, gh.
+- **No destructive git:** checkout, restore, reset, clean, stash, commit, push. This is what wiped 18 files in the incident that prompted these rules.
+- **No network/env exfil:** curl, wget, env, printenv, WebFetch, WebSearch.
+- The `OPENROUTER_API_KEY` is stripped from the worker's environment (it never needs it).
+
+The preamble tells the worker to treat a denial as a **blocker to report**, not an obstacle to route around, and to ask the orchestrator for any config value it can't read. When a packet needs a secret, YOU read it and paste a sanitized value into the packet — never widen the deny list to let the worker fetch it.
 
 ## Native-agent dispatch (monitorable in the UI)
 
