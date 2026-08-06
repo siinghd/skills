@@ -89,17 +89,17 @@ The preamble tells the worker to treat a denial as a **blocker to report**, not 
 
 ## Native-agent dispatch (monitorable in the UI)
 
-Prefer launching DeepSeek workers through the `deepseek-worker` agent (Agent tool, `subagent_type: "deepseek-worker"`) instead of calling `or-worker.sh` yourself: it's a Haiku-cheap chaperone that starts the gateway, dispatches the packet to the script, sanity-checks the resulting diff, and relays the report — and because it's a native agent, the run is visible/monitorable in the harness UI and continuable via SendMessage (follow-ups resume the same DeepSeek session via `-r`). Give it the full WORK PACKET in its prompt; add a `RESUME SESSION: <id>` line for follow-up fixes. Call the script directly only for large scripted fan-outs (loops, Workflow) where per-run chaperones add no value.
+Prefer launching workers through the `openrouter-worker` agent (Agent tool, `subagent_type: "openrouter-worker"`) instead of calling `or-worker.sh` yourself: it's a Haiku-cheap chaperone that starts the gateway, dispatches the packet to the script, sanity-checks the resulting diff, and relays the report — and because it's a native agent, the run is visible/monitorable in the harness UI and continuable via SendMessage (follow-ups resume the same DeepSeek session via `-r`). Give it the full WORK PACKET in its prompt; add a `RESUME SESSION: <id>` line for follow-up fixes. Call the script directly only for large scripted fan-outs (loops, Workflow) where per-run chaperones add no value.
 
 ## Monitoring runs
 
 - Every worker streams NDJSON progress to `runs/<timestamp>-<label>.jsonl` in this skill's directory (path announced on stderr at dispatch).
 - `$OR/or-monitor.sh list` — all runs with status/cost/turns; `watch [log]` — live-tail a run (defaults to newest; for the user's own terminal); `show [log]` — render a finished transcript.
-- Workers are real Claude Code sessions: their transcripts also appear under `claude --resume` in the workdir. View-only — typing there would send a `deepseek/*` model id to Anthropic auth and fail; continue workers with `or-worker.sh -r <session-id>` (or a follow-up to the chaperone agent) instead.
+- Workers are real Claude Code sessions: their transcripts also appear under `claude --resume` in the workdir. View-only — typing there would send an OpenRouter model id to Anthropic auth and fail; continue workers with `or-worker.sh -r <session-id>` (or a follow-up to the chaperone agent) instead.
 
 ## Claude Desktop bridge
 
-`mcp/server.py` exposes this skill to the Claude Desktop chat app as MCP tools (`deepseek_chat`, `deepseek_worker_start`/`_check` with a start→poll contract, `deepseek_runs_list`, `openrouter_gateway`), registered as `deepseek-openrouter` in the per-OS Desktop config (`~/Library/Application Support/Claude/` on macOS, `%APPDATA%/Claude/` on Windows, `${XDG_CONFIG_HOME:-~/.config}/Claude/` on Linux) (runs via `uv run --with mcp`). Workers dispatched from Desktop land in the same `runs/` directory, so `or-monitor.sh` and this session see them too.
+`mcp/server.py` exposes this skill to the Claude Desktop chat app as MCP tools (`openrouter_chat`, `openrouter_worker_start`/`_check` with a start→poll contract, `openrouter_runs_list`, `openrouter_gateway`), registered as `openrouter` in the per-OS Desktop config (`~/Library/Application Support/Claude/` on macOS, `%APPDATA%/Claude/` on Windows, `${XDG_CONFIG_HOME:-~/.config}/Claude/` on Linux) (runs via `uv run --with mcp`). Workers dispatched from Desktop land in the same `runs/` directory, so `or-monitor.sh` and this session see them too.
 
 ## Caveats
 

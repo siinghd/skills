@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# setup.sh — one-command setup for the OpenRouter/DeepSeek execution tier.
+# setup.sh — one-command setup for the OpenRouter execution tier.
 #
 # Supports macOS, Linux (including WSL, the recommended Windows route) and
 # Windows under Git Bash/MSYS2. These are all bash scripts, so native
@@ -160,10 +160,13 @@ else
     fi
     if [ -z "${SKIP_DESKTOP:-}" ]; then
       cp "$CFG" "$CFG.bak-$(date +%Y%m%d-%H%M%S)"
+      # Also drop the pre-rename key so a machine set up earlier doesn't end up
+      # with two servers exposing the same tools under different names.
       jq --arg uv "$UV_BIN" --arg srv "$SRV" \
-        '.mcpServers["deepseek-openrouter"] = {command: $uv, args: ["run", "--with", "mcp", "python", $srv]}' \
+        '.mcpServers["openrouter"] = {command: $uv, args: ["run", "--with", "mcp", "python", $srv]}
+         | del(.mcpServers["deepseek-openrouter"])' \
         "$CFG" > "$CFG.tmp" && mv "$CFG.tmp" "$CFG"
-      ok "registered deepseek-openrouter (fully restart Claude Desktop to load it)"
+      ok "registered openrouter (fully restart Claude Desktop to load it)"
     else
       echo "  - cygpath not found; cannot translate paths for native Claude Desktop — skipping registration"
       echo "    (use WSL for full parity, or install MSYS2 with cygpath)"

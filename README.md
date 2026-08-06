@@ -39,11 +39,11 @@ Drop the file in the matching directory, commit, push, and run
 `./sync.sh install` on machines using copy mode (symlink mode needs a rerun
 only when a new top-level entry appears).
 
-## OpenRouter / DeepSeek execution tier
+## OpenRouter execution tier
 
-`skills/openrouter` + `agents/deepseek-worker.md` (driven by `/orchestrate ... use <model>`)
-add a cheap delegation tier: DeepSeek workers (via OpenRouter) execute mechanical
-packets at ~2% of premium-model rates, dispatched either as one-shot "oracles",
+`skills/openrouter` + `agents/openrouter-worker.md` (driven by `/orchestrate ... use <model>`)
+add a cheap delegation tier: workers on any OpenRouter-hosted model (DeepSeek,
+Qwen, GLM, Kimi, …) execute mechanical packets at ~2% of premium-model rates, dispatched either as one-shot "oracles",
 fully agentic headless Claude Code workers, native chaperone agents, or MCP tools
 in Claude Desktop.
 

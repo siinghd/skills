@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""MCP stdio server exposing the openrouter skill's DeepSeek dispatch to Claude Desktop.
+"""MCP stdio server exposing the openrouter skill to Claude Desktop.
 
 Registered in claude_desktop_config.json; wraps the skill's shell scripts so
-Desktop-Claude can run cheap DeepSeek oracles and agentic workers locally.
+Desktop-Claude can run cheap oracles and agentic workers locally on any
+OpenRouter-hosted model (DeepSeek is only the default).
 Long-running workers use a start/check contract (Desktop tool calls must not
 block for minutes).
 """
@@ -21,7 +22,7 @@ SKILL = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRIPTS = os.path.join(SKILL, "scripts")
 RUNS = os.path.join(SKILL, "runs")
 
-mcp = FastMCP("deepseek-openrouter")
+mcp = FastMCP("openrouter")
 
 
 def _run(args, input_text=None, timeout=600):
@@ -34,7 +35,7 @@ def _run(args, input_text=None, timeout=600):
 def openrouter_gateway(action: str = "status") -> str:
     """Manage the local LiteLLM gateway (action: start | stop | status).
 
-    The gateway must be running before deepseek_worker_start. 'start' is
+    The gateway must be running before openrouter_worker_start. 'start' is
     idempotent; first-ever start may take a couple of minutes (downloads).
     """
     if action not in ("start", "stop", "status"):
@@ -44,14 +45,14 @@ def openrouter_gateway(action: str = "status") -> str:
 
 
 @mcp.tool()
-def deepseek_chat(
+def openrouter_chat(
     prompt: str,
     model: str = "~deepseek/deepseek-v4-flash-latest",
     system: str = "",
     effort: str = "max",
     max_tokens: int = 32768,
 ) -> str:
-    """One-shot DeepSeek/OpenRouter completion (text in, text out — no tools).
+    """One-shot completion on any OpenRouter model (text in, text out — no tools).
 
     Good for generation, review, or second opinions where the prompt carries
     all needed context. effort: max|xhigh|high|medium|low|minimal|none —
@@ -80,7 +81,7 @@ def deepseek_chat(
 
 
 @mcp.tool()
-def deepseek_worker_start(
+def openrouter_worker_start(
     packet: str,
     workdir: str,
     label: str = "desktop",
@@ -89,9 +90,9 @@ def deepseek_worker_start(
     run_commands: bool = False,
     isolate: bool = False,
 ) -> str:
-    """Start an agentic DeepSeek worker (headless Claude Code with real tools:
+    """Start an agentic worker on any OpenRouter model (headless Claude Code with real tools:
     read/edit files in workdir) on a work packet. Returns immediately — poll
-    deepseek_worker_check(label) every 20-30s.
+    openrouter_worker_check(label) every 20-30s.
 
     The packet must be self-contained: objective, exact file paths, pasted
     context, explicit non-goals, acceptance criteria, required report shape.
@@ -101,7 +102,7 @@ def deepseek_worker_start(
     starting more than one worker on the same repo at once, because workers
     sharing a checkout revert each other's work. The worktree starts from HEAD
     (commit/stash first if the worker must build on uncommitted changes) and
-    its path is reported by deepseek_worker_check for you to review and merge.
+    its path is reported by openrouter_worker_check for you to review and merge.
 
     run_commands=True lets it execute shell commands (tests/builds); default
     allows only file edits. Either way the worker cannot read .env/key files,
@@ -136,12 +137,12 @@ def deepseek_worker_start(
     subprocess.Popen(args, stdout=out, stderr=err, start_new_session=True)
     return (
         f"worker '{label}' dispatched in {workdir}. "
-        f"Poll deepseek_worker_check(label='{label}') every 20-30s until it reports a result."
+        f"Poll openrouter_worker_check(label='{label}') every 20-30s until it reports a result."
     )
 
 
 @mcp.tool()
-def deepseek_worker_check(label: str = "desktop") -> str:
+def openrouter_worker_check(label: str = "desktop") -> str:
     """Check a dispatched worker. Returns the final report (with session_id for
     follow-ups, cost, turns) once done, a failure diagnosis, or RUNNING with
     its most recent activity."""
@@ -186,7 +187,7 @@ def deepseek_worker_check(label: str = "desktop") -> str:
 
 
 @mcp.tool()
-def deepseek_runs_list() -> str:
+def openrouter_runs_list() -> str:
     """List all worker runs with status, cost, and turn count."""
     p = _run([os.path.join(SCRIPTS, "or-monitor.sh"), "list"], timeout=30)
     return (p.stdout + p.stderr).strip()

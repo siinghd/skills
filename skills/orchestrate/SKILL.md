@@ -30,7 +30,7 @@ Every agent definition is pinned to Opus 5 at `xhigh` effort, so this holds for 
 
 **Default: Opus workers.** Use them unless the user says otherwise. They share your tooling, need no gateway, and are strong enough for any packet.
 
-**Cheap tier, on request only.** When the user names a non-Anthropic model — "use deepseek-v4-flash-latest", "run this on qwen3-coder", "use the cheap workers" — route *implementation* packets through the `deepseek-worker` chaperone (Agent tool, `subagent_type: "deepseek-worker"`), adding `MODEL: <id>` to the packet when they named a specific one. That tier bills ~$0.09/$0.18 per MTok against the user's OpenRouter account instead of $5/$25, at the cost of weaker tool-calling and no shared context.
+**Cheap tier, on request only.** When the user names a non-Anthropic model — "use deepseek-v4-flash-latest", "run this on qwen3-coder", "use the cheap workers" — route *implementation* packets through the `openrouter-worker` chaperone (Agent tool, `subagent_type: "openrouter-worker"`), adding `MODEL: <id>` to the packet when they named a specific one. That tier bills ~$0.09/$0.18 per MTok against the user's OpenRouter account instead of $5/$25, at the cost of weaker tool-calling and no shared context.
 
 What does **not** move to the cheap tier, ever:
 - **Verification** — never verify a model's work with the same tier that produced it. Verifier stays Anthropic.
