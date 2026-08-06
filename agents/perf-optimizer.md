@@ -2,6 +2,12 @@
 name: perf-optimizer
 description: Performance specialist for identifying and fixing bottlenecks. PROACTIVELY use when noticing slow response times or high resource usage.
 color: pink
+hooks:
+  PreToolUse:
+    - matcher: "Bash|Read|Edit|Write|NotebookEdit"
+      hooks:
+        - type: command
+          command: "$HOME/.claude/hooks/agent-guard.sh"
 ---
 
 ---

@@ -79,6 +79,27 @@ fi
 step "LiteLLM gateway"
 "$SCRIPTS/or-proxy.sh" start | sed 's/^/  /'
 
+step "Subagent guard hook"
+# Registered globally rather than per-agent: a global PreToolUse hook reaches
+# every subagent including ones added later, and agent-guard.sh scopes itself to
+# subagents by checking `agent_type`, so the orchestrator stays unrestricted.
+GUARD="$HOME/.claude/hooks/agent-guard.sh"
+SETTINGS_FILE="$HOME/.claude/settings.json"
+if [ ! -f "$GUARD" ]; then
+  echo "  - $GUARD not found; run ./sync.sh install first, then re-run"
+else
+  chmod +x "$GUARD"
+  [ -f "$SETTINGS_FILE" ] || echo '{}' > "$SETTINGS_FILE"
+  if jq -e '(.hooks.PreToolUse // [])[]?.hooks[]?.command | select(test("agent-guard"))' "$SETTINGS_FILE" >/dev/null 2>&1; then
+    ok "already registered in settings.json"
+  else
+    cp "$SETTINGS_FILE" "$SETTINGS_FILE.bak-$(date +%Y%m%d-%H%M%S)"
+    jq '.hooks.PreToolUse = ((.hooks.PreToolUse // []) + [{"matcher":"Bash|Read|Edit|Write|NotebookEdit","hooks":[{"type":"command","command":"~/.claude/hooks/agent-guard.sh"}]}])' \
+      "$SETTINGS_FILE" > "$SETTINGS_FILE.tmp" && mv "$SETTINGS_FILE.tmp" "$SETTINGS_FILE"
+    ok "registered in settings.json (restart Claude Code — hooks load at session start)"
+  fi
+fi
+
 step "Claude Desktop MCP registration"
 # Desktop ships an app-specific config path per OS.
 case "$OS" in

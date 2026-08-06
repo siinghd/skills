@@ -35,11 +35,27 @@ You are the orchestrator: an expensive, high-judgment model. Workers are Opus 5 
    - Acceptance criteria + the verification command to run
    - Required report shape (the agents' definitions already specify one)
 
-3. **Dispatch.** Use the Agent tool with `subagent_type: worker | scout | verifier`. Independent packets go in ONE message as parallel Agent calls — and parallel implementation workers on one repo MUST get `isolation: "worktree"`, or be sequenced. Workers in a shared checkout see each other's half-finished edits, mistake them for their own overreach, and revert them; this destroyed 18 files in a real session. Explicit NON-GOALS in the packet do NOT prevent it. Snapshot uncommitted work first (`git diff HEAD > /tmp/pre-delegation.patch`). For a follow-up to an existing worker (fixing its own output, answering its blocker), use SendMessage to continue it — it keeps its context; do not respawn.
+3. **Dispatch.** Use the Agent tool with `subagent_type: worker | scout | verifier`. Independent packets go in ONE message as parallel Agent calls — and parallel implementation workers on one repo MUST get `isolation: "worktree"`, or be sequenced.
+
+   **`isolation: "worktree"` isolates THIS session's repo, not the repo your packet targets.** If the work lives in a different checkout (or outside git entirely — e.g. `~/.claude`), the worktree is irrelevant and the workers land in the same shared directory anyway. Verified the hard way: two "isolated" workers both wrote into one live directory and each saw the other's files appear mid-run. When the target differs from the session repo, sequence the workers or give each a distinct output path, and say so in the packet. Workers in a shared checkout see each other's half-finished edits, mistake them for their own overreach, and revert them; this destroyed 18 files in a real session. Explicit NON-GOALS in the packet do NOT prevent it. Snapshot uncommitted work first (`git diff HEAD > /tmp/pre-delegation.patch`). For a follow-up to an existing worker (fixing its own output, answering its blocker), use SendMessage to continue it — it keeps its context; do not respawn.
 
 4. **Review.** Read each report, then verify it against `git status --porcelain` and the actual diff — reports have claimed "no other files touched" while three were modified. Spot-check the diff where it matters (interfaces, edge cases, anything the worker flagged as a deviation). Send fixes back to the SAME worker with precise feedback; only fix things yourself when the fix is smaller than explaining it.
 
-5. **Verify.** Dispatch `verifier` on the integrated result (or the project's verify skill for user-facing flows). Don't accept a worker's own "tests pass" as final evidence for the whole task.
+5. **Verify.** Dispatch `verifier` on the integrated result (or the project's verify skill for user-facing flows). Don't accept a worker's own "tests pass" as final evidence for the whole task. Follow the verification policy below.
+
+## Verification policy (evidence-backed — do not improvise around these)
+
+Cheapest-first, and stop as soon as a rung gives you a decision:
+
+1. **Deterministic tree facts** — what actually changed, from `git diff-tree -r --name-status <pre> <post>`, never `git status` (a reverted file *leaves* the dirty set, so status cannot see a worker destroying a peer's work). Free, and it catches the failures that have actually bitten you.
+2. **Execution** — tests, typecheck, build. This is the load-bearing rung: it is the only signal that reliably improves outcomes, and it is what justifies automatic re-dispatch.
+3. **One model verifier** — only for what execution cannot check (does the diff meet the stated intent?). Seal the acceptance criteria BEFORE dispatch and hand them to the verifier first, so it judges against a pre-registered standard rather than rationalizing the diff in front of it.
+
+Three rules that follow from measured results, not taste:
+
+- **A model verdict never auto-triggers a rewrite.** When an agent decides work needs revising, the revision is wrong 53–94% of the time (measured across 14 cohorts). Model-provenance FAILs come to you for a decision; only execution-grounded failures justify sending a worker back automatically.
+- **Do not convene verifier panels.** Nine judges across seven model families yield only ~2.2 effective independent votes — errors are correlated, and the best single judge matched or beat the panel on every benchmark tested. One good verifier plus real evidence beats a committee, at a fraction of the cost.
+- **Never ask a worker to self-verify its own reasoning without external evidence.** Intrinsic self-correction *lowers* accuracy (GPT-4: GSM8K 95.5%→89.0%, CommonSenseQA 82.0%→80.0%); correct→incorrect flips outnumber the fixes. Self-check is fine only against something external — a test, a type error, a tree diff.
 
 6. **Report.** Outcome first. Then what changed, verification evidence, and anything the user must decide. Mention the delegation shape in one line (e.g. "3 workers + 1 verifier did the execution").
 

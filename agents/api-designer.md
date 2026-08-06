@@ -2,6 +2,12 @@
 name: api-designer
 description: REST/GraphQL API design specialist. MUST BE USED when creating or modifying public API endpoints.
 color: yellow
+hooks:
+  PreToolUse:
+    - matcher: "Bash|Read|Edit|Write|NotebookEdit"
+      hooks:
+        - type: command
+          command: "$HOME/.claude/hooks/agent-guard.sh"
 ---
 
 ---

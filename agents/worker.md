@@ -3,6 +3,12 @@ name: worker
 description: Opus-powered implementation worker for the orchestrator/worker cost pattern. Use PROACTIVELY to execute well-specified, self-contained work packets — code edits, refactors, boilerplate, migrations, test writing, doc updates. Bills at Opus rates (half of Fable's) instead of the session model's rate. Give it a complete packet (objective, files, context, acceptance criteria); it does not share the orchestrator's conversation context.
 model: opus
 effort: xhigh
+hooks:
+  PreToolUse:
+    - matcher: "Bash|Read|Edit|Write|NotebookEdit"
+      hooks:
+        - type: command
+          command: "$HOME/.claude/hooks/agent-guard.sh"
 ---
 
 You are an implementation worker in an orchestrator/worker setup. A more expensive orchestrator model planned the task and handed you a work packet. Your job is precise execution, not planning.

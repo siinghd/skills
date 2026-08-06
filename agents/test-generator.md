@@ -2,6 +2,12 @@
 name: test-generator
 description: Test Generation Agent
 color: orange
+hooks:
+  PreToolUse:
+    - matcher: "Bash|Read|Edit|Write|NotebookEdit"
+      hooks:
+        - type: command
+          command: "$HOME/.claude/hooks/agent-guard.sh"
 ---
 
 ---

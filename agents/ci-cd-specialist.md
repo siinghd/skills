@@ -2,6 +2,12 @@
 name: ci-cd-specialist
 description: This saves hours of debugging pipeline issues.
 color: pink
+hooks:
+  PreToolUse:
+    - matcher: "Bash|Read|Edit|Write|NotebookEdit"
+      hooks:
+        - type: command
+          command: "$HOME/.claude/hooks/agent-guard.sh"
 ---
 
 ---

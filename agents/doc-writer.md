@@ -2,6 +2,12 @@
 name: doc-writer
 description: Poor documentation slows down teams - this agent keeps it up to date.
 color: yellow
+hooks:
+  PreToolUse:
+    - matcher: "Bash|Read|Edit|Write|NotebookEdit"
+      hooks:
+        - type: command
+          command: "$HOME/.claude/hooks/agent-guard.sh"
 ---
 
 ---

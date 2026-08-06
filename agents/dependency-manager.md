@@ -2,6 +2,12 @@
 name: dependency-manager
 description: Dependency Management Agent
 color: cyan
+hooks:
+  PreToolUse:
+    - matcher: "Bash|Read|Edit|Write|NotebookEdit"
+      hooks:
+        - type: command
+          command: "$HOME/.claude/hooks/agent-guard.sh"
 ---
 
 ---

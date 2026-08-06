@@ -112,6 +112,16 @@ fi
 extra_args=()
 [ -n "$RESUME" ] && extra_args+=(--resume "$RESUME")
 
+# Snapshot the tree BEFORE the worker runs. This is what makes destroyed work
+# detectable: a file the worker reverts leaves the dirty set, so `git status`
+# afterwards shows nothing missing — only a pre/post tree comparison sees it.
+# Non-git workdirs are supported (no evidence, but the run still works).
+EVIDENCE="$(dirname "$0")/or-evidence.sh"
+PRE_TREE=""
+if [ -x "$EVIDENCE" ] && git -C "$RUN_DIR" rev-parse --git-dir >/dev/null 2>&1; then
+  PRE_TREE="$("$EVIDENCE" snapshot "$RUN_DIR" 2>/dev/null || true)"
+fi
+
 cd "$RUN_DIR"
 # env -u strips this session's Anthropic auth, nesting markers, and the
 # OpenRouter key (the worker itself never needs it) so the child claude
@@ -133,6 +143,23 @@ env -u ANTHROPIC_API_KEY -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u OPENROUTER_A
     --verbose \
     ${extra_args[@]+"${extra_args[@]}"} \
     > "$LOG" 2>&1 || worker_status=$?
+
+# Evidence card: harness-collected facts about what the worker ACTUALLY changed,
+# printed to stderr so stdout stays the result-JSON contract. Never gates the
+# run — the orchestrator decides what a CRITICAL means; see the correction
+# policy in /orchestrate (a model verdict must not auto-trigger a rewrite).
+CARD_STATUS=0
+if [ -n "$PRE_TREE" ]; then
+  POST_TREE="$("$EVIDENCE" snapshot "$RUN_DIR" 2>/dev/null || true)"
+  if [ -n "$POST_TREE" ]; then
+    card_args=(card --dir "$RUN_DIR" --pre "$PRE_TREE" --post "$POST_TREE" --log "$LOG")
+    [ -n "${OR_SCOPE:-}" ] && card_args+=(--scope "$OR_SCOPE")
+    "$EVIDENCE" "${card_args[@]}" >&2 || CARD_STATUS=$?
+    if [ "$CARD_STATUS" -ge 2 ]; then
+      echo "^^ CRITICAL evidence — review before merging this worker's output." >&2
+    fi
+  fi
+fi
 
 if [ -n "$WT_PATH" ]; then
   if [ -z "$(git -C "$WT_PATH" status --porcelain 2>/dev/null)" ]; then

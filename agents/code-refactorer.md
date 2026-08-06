@@ -2,6 +2,12 @@
 name: code-refactorer
 description: This helps maintain code quality without introducing bugs.
 color: purple
+hooks:
+  PreToolUse:
+    - matcher: "Bash|Read|Edit|Write|NotebookEdit"
+      hooks:
+        - type: command
+          command: "$HOME/.claude/hooks/agent-guard.sh"
 ---
 
 ---

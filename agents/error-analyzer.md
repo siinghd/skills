@@ -2,6 +2,12 @@
 name: error-analyzer
 description: Production error diagnosis specialist. MUST BE USED when investigating errors from monitoring tools (Sentry, Datadog, etc.).
 color: blue
+hooks:
+  PreToolUse:
+    - matcher: "Bash|Read|Edit|Write|NotebookEdit"
+      hooks:
+        - type: command
+          command: "$HOME/.claude/hooks/agent-guard.sh"
 ---
 
 ---
