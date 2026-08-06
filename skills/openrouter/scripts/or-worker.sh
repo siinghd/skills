@@ -18,6 +18,10 @@
 #   -n  max agent turns (default: 50)
 #   -e  effort level: low|medium|high|xhigh|max (default: $OR_WORKER_EFFORT or max)
 #   -l  run label used in the live-log filename (default: worker)
+#   -t  task id grouping related runs in the ledger. When set, the digest of
+#       work ALREADY done for that task is injected into the packet, so a worker
+#       cannot repeat a finished step (step repetition is the most common
+#       multi-agent failure mode). Also settable via $OR_TASK.
 #   -s  colon-separated scope globs the packet authorises, e.g. 'src/**:*.md'.
 #       Any file changed outside them is reported as out_of_scope (FAIL). Also
 #       settable via $OR_SCOPE. Omit to skip the scope check entirely.
@@ -57,11 +61,12 @@ RESUME=""
 EFFORT="${OR_WORKER_EFFORT:-max}"
 LABEL="worker"
 
-while getopts "m:d:n:r:e:l:s:wy" opt; do
+while getopts "m:d:n:r:e:l:s:t:wy" opt; do
   case "$opt" in
     m) MODEL="$OPTARG" ;;
     d) WORKDIR="$OPTARG" ;;
     s) OR_SCOPE="$OPTARG" ;;
+    t) OR_TASK="$OPTARG" ;;
     n) MAX_TURNS="$OPTARG" ;;
     r) RESUME="$OPTARG" ;;
     e) EFFORT="$OPTARG" ;;
@@ -136,6 +141,27 @@ if [ -x "$EVIDENCE" ] && git -C "$RUN_DIR" rev-parse --git-dir >/dev/null 2>&1; 
   PRE_TREE="$("$EVIDENCE" snapshot "$RUN_DIR" 2>/dev/null || true)"
 fi
 
+# Inject what earlier runs on this task already finished. Pushed into the packet
+# rather than left for the worker to query: an agent that has forgotten a step
+# will not think to ask whether it was done.
+TASK_ID="${OR_TASK:-}"
+RUN_ID="${LABEL}-$$"
+if [ -n "$TASK_ID" ] && [ -f "$LEDGER" ]; then
+  STEPS="$(python3 "$LEDGER" steps --task "$TASK_ID" 2>/dev/null || true)"
+  if [ -n "$STEPS" ]; then
+    PACKET="ALREADY DONE ON THIS TASK (harness-collected — treat as fact, not as a claim):
+$STEPS
+
+Do not redo any of the above. If your packet asks for something already listed, say so and stop.
+--- END PRIOR WORK ---
+
+$PACKET"
+    echo "injected prior-work digest ($(printf '%s' "$STEPS" | wc -l | tr -d ' ') lines)" >&2
+  fi
+  python3 "$LEDGER" run start --task "$TASK_ID" --agent "$LABEL" --model "$MODEL" \
+    --workdir "$RUN_DIR" --log "$LOG" ${PRE_TREE:+--pre "$PRE_TREE"} >/dev/null 2>&1 || true
+fi
+
 cd "$RUN_DIR"
 # env -u strips this session's Anthropic auth, nesting markers, and the
 # OpenRouter key (the worker itself never needs it) so the child claude
@@ -194,9 +220,9 @@ if [ -n "$PRE_TREE" ]; then
       CARD_JSON="$("$EVIDENCE" "${card_args[@]}" --json 2>/dev/null || true)"
       if [ -n "$CARD_JSON" ]; then
         printf '%s' "$CARD_JSON" > "$RUNS_DIR/.card-$$.json"
-        python3 "$LEDGER" evidence put --task "${OR_TASK:-$LABEL}" --run "$LABEL-$$" \
+        python3 "$LEDGER" evidence put --task "${TASK_ID:-$LABEL}" --run "$RUN_ID" \
           --kind card --payload-file "$RUNS_DIR/.card-$$.json" \
-          --idem "card-$LABEL-$$" >/dev/null 2>&1 || true
+          --idem "card-$RUN_ID" >/dev/null 2>&1 || true
         rm -f "$RUNS_DIR/.card-$$.json"
       fi
     fi

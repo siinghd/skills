@@ -30,7 +30,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-DIRS=(skills commands agents hooks)
+DIRS=(skills commands agents hooks scripts)
 
 install() {
   for dir in "${DIRS[@]}"; do

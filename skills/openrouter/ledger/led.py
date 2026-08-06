@@ -684,6 +684,80 @@ def cmd_stats(args):
 # --------------------------------------------------------------------------
 
 
+def cmd_steps(args):
+    """Compact 'what has already been done for this task' digest.
+
+    Exists because step repetition is the single most frequent multi-agent
+    failure mode (15.7% of traces): agents redo finished work because nothing
+    tells them it is finished. The dispatcher injects this into each packet, so
+    a worker cannot forget to ask.
+
+    Deliberately terse — it is prepended to every packet, so its size is paid on
+    every dispatch.
+    """
+    conn = connect()
+    try:
+        ensure_ready(conn, create_ok=False)
+        check_schema_version(conn)
+        runs = conn.execute(
+            "SELECT agent, status, workdir, started_at, ended_at FROM run "
+            "WHERE task_id = ? ORDER BY started_at",
+            (args.task,),
+        ).fetchall()
+        ev = conn.execute(
+            "SELECT payload FROM evidence WHERE task_id = ? AND kind = 'card' "
+            "ORDER BY created_at",
+            (args.task,),
+        ).fetchall()
+        msgs = conn.execute(
+            "SELECT from_agent, kind, body FROM msg WHERE task_id = ? "
+            "AND kind IN ('blocker','handoff','finding') ORDER BY created_at",
+            (args.task,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    touched, verdicts = [], []
+    for (payload,) in ev:
+        try:
+            card = json.loads(payload)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        touched.extend(card.get("observed") or [])
+        if card.get("verdict"):
+            verdicts.append(card["verdict"])
+
+    if not runs and not touched and not msgs:
+        out = ""
+    else:
+        lines = []
+        if runs:
+            done = [f"{r[0]} ({r[1]})" for r in runs]
+            lines.append(f"Prior runs on this task: {', '.join(done)}")
+        if touched:
+            uniq = sorted(set(touched))
+            shown = uniq[:25]
+            more = f" (+{len(uniq) - len(shown)} more)" if len(uniq) > len(shown) else ""
+            lines.append("Files ALREADY changed by earlier runs — do not redo this work:")
+            lines += [f"  {p}" for p in shown]
+            if more:
+                lines.append(f" {more.strip()}")
+        if verdicts:
+            bad = [v for v in verdicts if v in ("critical", "fail")]
+            if bad:
+                lines.append(f"Earlier evidence verdicts needing care: {', '.join(sorted(set(bad)))}")
+        for a, k, b in msgs:
+            lines.append(f"{k.upper()} from {a}: {b.strip()[:240]}")
+        out = "\n".join(lines)
+
+    if getattr(args, "json", False):
+        print(json.dumps({"task": args.task, "digest": out,
+                          "runs": len(runs), "files": len(set(touched))}, indent=2))
+    elif out:
+        print(out)
+    return 0
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="led",
@@ -790,6 +864,13 @@ def build_parser():
     p_st = sub.add_parser("stats", help="store-wide counts (orchestrator only)")
     p_st.add_argument("--json", action="store_true")
     p_st.set_defaults(op="stats", func=cmd_stats)
+
+    p_sp = sub.add_parser(
+        "steps", help="digest of work already done for a task (injected into packets)"
+    )
+    p_sp.add_argument("--task", required=True)
+    p_sp.add_argument("--json", action="store_true")
+    p_sp.set_defaults(op="steps", func=cmd_steps)
 
     return parser
 
