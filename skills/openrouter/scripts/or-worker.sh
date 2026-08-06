@@ -37,6 +37,9 @@ set -euo pipefail
 SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 RUNS_DIR="$SKILL_DIR/runs"
 PORT="${OR_PROXY_PORT:-4141}"
+# Stored model defaults (see or-config.sh for precedence). Loaded before the
+# defaults below so `-m` and exported env vars still win.
+. "$(dirname "$0")/or-config.sh"; or_load_config
 # The leading ~ is literal (OpenRouter's rolling-alias namespace, always the
 # newest flash snapshot) — keep it quoted anywhere it appears in shell.
 MODEL="${OR_WORKER_MODEL:-~deepseek/deepseek-v4-flash-latest}"

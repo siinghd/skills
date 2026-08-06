@@ -22,8 +22,13 @@ SCRIPTS="$SKILL_DIR/scripts"
 DESKTOP=true
 KEY_ARG=""
 
+MODEL_ARG=""
+prev=""
 for arg in "$@"; do
+  if [ "$prev" = "--model" ]; then MODEL_ARG="$arg"; prev=""; continue; fi
   case "$arg" in
+    --model) prev="--model" ;;
+    --model=*) MODEL_ARG="${arg#--model=}" ;;
     --no-desktop) DESKTOP=false ;;
     --help|-h)
       sed -n '2,14p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
@@ -76,8 +81,29 @@ elif ! "$SCRIPTS/or-chat.sh" key-check >/dev/null 2>&1; then
 fi
 "$SCRIPTS/or-chat.sh" key-check | sed 's/^/  /'
 
+step "Model selection"
+. "$SCRIPTS/or-config.sh"
+if [ -n "$MODEL_ARG" ]; then
+  or_set_model "$MODEL_ARG" && ok "default model set to $MODEL_ARG"
+elif [ -f "$(or_config_file)" ]; then
+  or_load_config; ok "using stored default: ${OR_WORKER_MODEL:-?}"
+else
+  or_set_model '~deepseek/deepseek-v4-flash-latest'
+  ok "no model chosen — defaulted to ~deepseek/deepseek-v4-flash-latest"
+fi
+echo "  change any time:  ./setup.sh --model '<id>'      list ids: $SCRIPTS/or-chat.sh models <filter>"
+
 step "LiteLLM gateway"
 "$SCRIPTS/or-proxy.sh" start | sed 's/^/  /'
+
+step "Agent ledger"
+if [ -f "$SKILL_DIR/ledger/led.py" ]; then
+  python3 "$SKILL_DIR/ledger/led.py" init >/dev/null 2>&1 \
+    && ok "ledger ready at ${LEDGER_DB:-$HOME/.claude/ledger/ledger.db}" \
+    || echo "  - ledger init failed (non-fatal; run led.py init manually)"
+else
+  echo "  - ledger/led.py not found; skipping"
+fi
 
 step "Subagent guard hook"
 # Registered globally rather than per-agent: a global PreToolUse hook reaches
@@ -146,7 +172,9 @@ fi
 
 step "Ready — cheatsheet"
 cat <<EOF
-  Oracle (one-shot):  $SCRIPTS/or-chat.sh chat -m '~deepseek/deepseek-v4-flash-latest' prompt.md
+  Pick a model:       ./setup.sh --model '<id>'   (list: $SCRIPTS/or-chat.sh models deepseek)
+  Oracle (one-shot):  $SCRIPTS/or-chat.sh chat prompt.md          # uses your chosen model
+  One-off other model:$SCRIPTS/or-chat.sh chat -m 'qwen/qwen3-coder' prompt.md
   Agentic worker:     $SCRIPTS/or-worker.sh -d /path/to/repo packet.md
   Monitor runs:       $SCRIPTS/or-monitor.sh list | watch | show
   Gateway:            $SCRIPTS/or-proxy.sh start | stop | status

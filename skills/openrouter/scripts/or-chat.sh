@@ -16,6 +16,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/or-common.sh"
+. "$SCRIPT_DIR/or-config.sh"; or_load_config
 
 cmd="${1:-}"
 case "$cmd" in
@@ -54,7 +55,9 @@ case "$cmd" in
       esac
     done
     shift $((OPTIND - 1))
-    [ -n "$model" ] || { echo "ERROR: -m <model> is required" >&2; exit 2; }
+    # Fall back to the configured oracle model so `-m` is optional day-to-day.
+    [ -n "$model" ] || model="${OR_ORACLE_MODEL:-}"
+    [ -n "$model" ] || { echo "ERROR: -m <model> is required (or run setup.sh --model <id> once)" >&2; exit 2; }
     if [ -n "$system_file" ] && [ ! -f "$system_file" ]; then
       echo "ERROR: system prompt file not found: $system_file" >&2
       exit 2

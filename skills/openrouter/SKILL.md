@@ -15,6 +15,20 @@ Key resolution order, handled identically on every platform by the shared `scrip
 
 Sanity check: `$OR/or-chat.sh key-check` (prints label + usage on success).
 
+## Setup (one command)
+
+```bash
+~/.claude/skills/openrouter/setup.sh sk-or-v1-<key> --model '~deepseek/deepseek-v4-flash-latest'
+```
+Idempotent; both arguments optional after the first run. It checks dependencies, stores the key in the OS keyring, records the model default, starts the gateway, initialises the ledger, registers the subagent guard hook, and registers the Claude Desktop MCP server. **Restart Claude Code afterwards** — hooks load at session start.
+
+## Choosing a model
+
+Three levels, highest priority first — so a stored default never traps you:
+1. `-m '<id>'` on any command — one-off override.
+2. `OR_WORKER_MODEL` / `OR_ORACLE_MODEL` exported in the shell — session override.
+3. `setup.sh --model '<id>'` — the persistent default, stored in `config.env` and used by workers and oracles alike.
+
 ## Choosing a model — query live, don't trust memory
 
 Model IDs and pricing churn. List them live (no key required):
