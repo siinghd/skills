@@ -136,7 +136,7 @@ Discover the work-list yourself (or via scouts) before invoking Workflow; pass i
 
 When the task is recurring or has a checkable end state, wrap this pattern in a loop (per Anthropic's "Getting started with loops" guidance):
 
-- **Goal-based (`/goal`):** prefer this when completion is deterministic — tests passing, a count reaching zero, a migration list emptied. State the criteria explicitly so the loop can't stop early or overrun.
+- **Goal-based:** when completion is deterministic — tests passing, a count reaching zero, a migration list emptied — state the criteria explicitly and loop until they hold, so the loop can't stop early or overrun. `/loop` with no interval self-paces and suits this; `ralph-loop` is the plugin alternative. (There is no `/goal` command installed.)
 - **Time-based (`/loop`, `/schedule`):** for recurring work or watching external systems; match the interval to how fast the underlying state actually changes, not a round number.
 - **Proactive/event-driven:** best for well-defined recurring streams — bug reports, issue triage, dependency upgrades — where each item becomes one work packet.
 - **Script the deterministic steps.** Anything a script can do (list the work items, run the checks, compute the diff) should be a script, not model reasoning re-derived every iteration. Encode recurring verification as a skill so every iteration runs it identically.
