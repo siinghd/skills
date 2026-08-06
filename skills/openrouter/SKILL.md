@@ -1,6 +1,6 @@
 ---
 name: openrouter
-description: Call non-Anthropic models (DeepSeek, Qwen, GLM, Kimi, etc.) from Claude Code via OpenRouter. Two dispatch modes - a curl-based one-shot "oracle" (or-chat.sh) for generation/review from supplied context, and fully agentic headless workers (or-proxy.sh + or-worker.sh) that run claude -p on an OpenRouter model through a local LiteLLM gateway. Use when the user asks to use DeepSeek/OpenRouter/another provider's model, wants a cheap second opinion, or /orchestrate-deepseek needs its plumbing.
+description: Call non-Anthropic models (DeepSeek, Qwen, GLM, Kimi, etc.) from Claude Code via OpenRouter. Two dispatch modes - a curl-based one-shot "oracle" (or-chat.sh) for generation/review from supplied context, and fully agentic headless workers (or-proxy.sh + or-worker.sh) that run claude -p on an OpenRouter model through a local LiteLLM gateway. Use when the user asks to use DeepSeek/OpenRouter/another provider's model, wants a cheap second opinion, or /orchestrate needs the cheap execution tier.
 argument-hint: <model or task>
 ---
 
@@ -29,9 +29,7 @@ Three levels, highest priority first — so a stored default never traps you:
 2. `OR_WORKER_MODEL` / `OR_ORACLE_MODEL` exported in the shell — session override.
 3. `setup.sh --model '<id>'` — the persistent default, stored in `config.env` and used by workers and oracles alike.
 
-## Choosing a model — query live, don't trust memory
-
-Model IDs and pricing churn. List them live (no key required):
+Model IDs and pricing churn — list them live rather than trusting memory (no key required):
 
 ```bash
 $OR/or-chat.sh models deepseek        # filter by substring, TSV: id, context, $/prompt-tok, $/completion-tok

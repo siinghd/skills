@@ -1,6 +1,8 @@
 ---
 name: ci-cd-specialist
 description: This saves hours of debugging pipeline issues.
+model: opus
+effort: xhigh
 color: pink
 hooks:
   PreToolUse:

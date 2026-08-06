@@ -1,6 +1,8 @@
 ---
 name: dependency-manager
 description: Dependency Management Agent
+model: opus
+effort: xhigh
 color: cyan
 hooks:
   PreToolUse:

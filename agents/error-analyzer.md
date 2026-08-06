@@ -1,6 +1,8 @@
 ---
 name: error-analyzer
 description: Production error diagnosis specialist. MUST BE USED when investigating errors from monitoring tools (Sentry, Datadog, etc.).
+model: opus
+effort: xhigh
 color: blue
 hooks:
   PreToolUse:

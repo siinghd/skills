@@ -1,6 +1,8 @@
 ---
 name: test-generator
 description: Test Generation Agent
+model: opus
+effort: xhigh
 color: orange
 hooks:
   PreToolUse:

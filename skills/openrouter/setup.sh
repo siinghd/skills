@@ -178,6 +178,6 @@ cat <<EOF
   Agentic worker:     $SCRIPTS/or-worker.sh -d /path/to/repo packet.md
   Monitor runs:       $SCRIPTS/or-monitor.sh list | watch | show
   Gateway:            $SCRIPTS/or-proxy.sh start | stop | status
-  In Claude Code:     /orchestrate-deepseek <task>
+  In Claude Code:     /orchestrate <task> use deepseek-v4-flash-latest
   In Claude Desktop:  ask for the deepseek_* tools (after app restart)
 EOF

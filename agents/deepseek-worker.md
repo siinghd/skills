@@ -1,6 +1,6 @@
 ---
 name: deepseek-worker
-description: Native-monitorable DeepSeek execution worker. A thin chaperone agent that dispatches its work packet to a DeepSeek-powered headless Claude Code worker (openrouter skill's or-worker.sh), watches the run, sanity-checks the diff, and relays the report. Use for implementation packets in /orchestrate-deepseek so runs appear as native agents the user can monitor; billing for the heavy lifting goes to OpenRouter, the chaperone itself is Haiku-cheap. Continue me via SendMessage for follow-up fixes — I resume the same DeepSeek session.
+description: Native-monitorable DeepSeek execution worker. A thin chaperone agent that dispatches its work packet to a DeepSeek-powered headless Claude Code worker (openrouter skill's or-worker.sh), watches the run, sanity-checks the diff, and relays the report. Use for implementation packets when /orchestrate is asked to run on a non-Anthropic model, so runs appear as native agents the user can monitor; billing for the heavy lifting goes to OpenRouter, the chaperone itself is Haiku-cheap. Continue me via SendMessage for follow-up fixes — I resume the same DeepSeek session.
 model: haiku
 effort: low
 tools: Bash, Read, Write, Grep, Glob

@@ -1,7 +1,7 @@
 ---
 name: orchestrate
-description: Run the current task in orchestrator/worker mode - the session model (Fable 5) plans, delegates execution to Opus-pinned workers (worker/scout/verifier agents), reviews, and integrates, so most tokens bill at Opus rates. Use when the user says "orchestrate", "delegate", "use workers", or when a task involves substantial mechanical execution (multi-file edits, migrations, test writing, broad research) that doesn't need the session model's full context per step.
-argument-hint: <task to orchestrate>
+description: Run the current task in orchestrator/worker mode - the session model plans, delegates execution to Opus-pinned workers (worker/scout/verifier agents), reviews, and integrates, so most tokens bill at Opus rates. Workers default to Opus 5; name any OpenRouter model (e.g. "use deepseek-v4-flash-latest") to route implementation packets to the cheap tier instead. Use when the user says "orchestrate", "delegate", "use workers", or when a task involves substantial mechanical execution (multi-file edits, migrations, test writing, broad research) that doesn't need the session model's full context per step.
+argument-hint: <task to orchestrate> [use <model-id>]
 ---
 
 # Orchestrator mode
@@ -23,6 +23,33 @@ You are the orchestrator: an expensive, high-judgment model. Workers are Opus 5 
 - `worker` — implementation packets: edits, refactors, boilerplate, migrations, tests, docs
 - `scout` — read-only research: searches, dependency tracing, "how does X work", parallel exploration fan-outs
 - `verifier` — post-implementation checks: run tests/typecheck/build, adversarial diff review vs acceptance criteria
+
+Every agent definition is pinned to Opus 5 at `xhigh` effort, so this holds for the specialist agents too (`code-refactorer`, `test-generator`, `security-auditor`, …) — dispatching one costs Opus rates, not yours.
+
+## Choosing the execution tier
+
+**Default: Opus workers.** Use them unless the user says otherwise. They share your tooling, need no gateway, and are strong enough for any packet.
+
+**Cheap tier, on request only.** When the user names a non-Anthropic model — "use deepseek-v4-flash-latest", "run this on qwen3-coder", "use the cheap workers" — route *implementation* packets through the `deepseek-worker` chaperone (Agent tool, `subagent_type: "deepseek-worker"`), adding `MODEL: <id>` to the packet when they named a specific one. That tier bills ~$0.09/$0.18 per MTok against the user's OpenRouter account instead of $5/$25, at the cost of weaker tool-calling and no shared context.
+
+What does **not** move to the cheap tier, ever:
+- **Verification** — never verify a model's work with the same tier that produced it. Verifier stays Anthropic.
+- **Scouting** — a scout's value is judgment-dense summarization, and oracles have no file access at all.
+- **Any packet where a wrong decision is expensive** — keep it, or give it to Opus.
+
+Escalation ladder per packet: `flash-latest` → `deepseek/deepseek-v4-pro` if flash fumbles it → an Opus `worker`. One clean Opus pass beats three cheap retries.
+
+Preflight for the cheap tier (first dispatch only): `$OR/or-chat.sh key-check`, then `$OR/or-proxy.sh start` (idempotent), where `OR="$HOME/.claude/skills/openrouter/scripts"`. See the `openrouter` skill for the plumbing, oracle mode (`or-chat.sh`, for generation/review from context you already hold — it cannot read files), and run monitoring.
+
+## Hard rules (from a real incident, not theory)
+
+Three parallel workers in one checkout ignored explicit NON-GOALS, raced on the same files, and two ran `git checkout` on their peers' concurrent edits — reasoning that unexpected changes must be their own overreach. 18 files were destroyed. One worker's report claimed "no other files touched" while three were modified. These apply to every tier:
+
+1. **Snapshot before delegating** whenever uncommitted work is in the tree: `git diff HEAD > /tmp/pre-delegation.patch`, or a checkpoint commit. This is what made the incident recoverable.
+2. **Parallel implementation workers get isolation, or they get sequenced.** NON-GOALS are not a concurrency mechanism — workers demonstrably ignore them.
+3. **Verify from tree facts, never `git status`.** A reverted file *leaves* the dirty set, so status certifies the destruction as clean. `or-worker.sh` prints an evidence card built from pre/post tree snapshots; for native workers, diff the trees yourself.
+4. **Workers cannot read secrets, run DB/cloud CLIs, or run destructive git** — enforced by the `agent-guard.sh` PreToolUse hook (all subagents) and `worker-settings.json` (headless workers). If a worker reports being blocked on a config value, YOU read it and paste a sanitized value into a follow-up packet. Never widen the deny list.
+5. **Marker sweep after a fan-out:** confirm the files and features you expected to survive are still present before accepting the batch.
 
 ## The loop
 
@@ -79,6 +106,9 @@ From a 1642-trace study across 7 frameworks (grounded-theory taxonomy, κ=0.88).
 - Spawning a new worker to fix an old worker's diff — SendMessage the original
 - Delegating anything that needs the user's conversation history verbatim — summarize the needed context into the packet instead
 - Polling or idling while workers run — you're notified on completion; do orchestrator-level work meanwhile
+- Running parallel workers in one checkout because "the packets don't overlap" — that exact reasoning cost 18 files
+- Sending exploration ("figure out how X works") to an oracle — it has no tools and will hallucinate confidently
+- Putting secrets or private user data in a cheap-tier packet — that content leaves for a third-party provider; describe the shape ("a Postgres URL"), don't paste the value
 
 ## Escalation: many packets → Workflow
 

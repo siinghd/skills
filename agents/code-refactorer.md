@@ -1,6 +1,8 @@
 ---
 name: code-refactorer
 description: This helps maintain code quality without introducing bugs.
+model: opus
+effort: xhigh
 color: purple
 hooks:
   PreToolUse:

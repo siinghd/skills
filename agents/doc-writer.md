@@ -1,6 +1,8 @@
 ---
 name: doc-writer
 description: Poor documentation slows down teams - this agent keeps it up to date.
+model: opus
+effort: xhigh
 color: yellow
 hooks:
   PreToolUse:

@@ -1,6 +1,8 @@
 ---
 name: security-auditor
 description: Security is critical but often an afterthought - make it proactive.
+model: opus
+effort: xhigh
 color: red
 hooks:
   PreToolUse:

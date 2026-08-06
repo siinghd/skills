@@ -1,6 +1,8 @@
 ---
 name: api-designer
 description: REST/GraphQL API design specialist. MUST BE USED when creating or modifying public API endpoints.
+model: opus
+effort: xhigh
 color: yellow
 hooks:
   PreToolUse:

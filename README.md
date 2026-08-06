@@ -41,7 +41,7 @@ only when a new top-level entry appears).
 
 ## OpenRouter / DeepSeek execution tier
 
-`skills/openrouter` + `skills/orchestrate-deepseek` + `agents/deepseek-worker.md`
+`skills/openrouter` + `agents/deepseek-worker.md` (driven by `/orchestrate ... use <model>`)
 add a cheap delegation tier: DeepSeek workers (via OpenRouter) execute mechanical
 packets at ~2% of premium-model rates, dispatched either as one-shot "oracles",
 fully agentic headless Claude Code workers, native chaperone agents, or MCP tools

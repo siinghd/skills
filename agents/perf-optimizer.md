@@ -1,6 +1,8 @@
 ---
 name: perf-optimizer
 description: Performance specialist for identifying and fixing bottlenecks. PROACTIVELY use when noticing slow response times or high resource usage.
+model: opus
+effort: xhigh
 color: pink
 hooks:
   PreToolUse:
