@@ -59,6 +59,18 @@ Three rules that follow from measured results, not taste:
 
 6. **Report.** Outcome first. Then what changed, verification evidence, and anything the user must decide. Mention the delegation shape in one line (e.g. "3 workers + 1 verifier did the execution").
 
+## What actually makes multi-agent systems fail
+
+From a 1642-trace study across 7 frameworks (grounded-theory taxonomy, κ=0.88). Baseline failure rates ran 41–87%, and the failures are **system-design defects, not model weakness** — a better model will not save a badly-run fan-out. Categories: system design 44.2%, inter-agent misalignment 32.3%, task verification 23.5%. Act on these:
+
+- **Fully specify the packet up front; never dribble it out across turns.** Feeding a task incrementally instead of complete costs **39%** average performance across 15 models and 200k conversations — and the damage is reliability, not capability (aptitude −16%, unreliability **+112%**). Agents commit early to a wrong reading and don't recover. This is the mechanism behind the vague-packet failures you've already seen.
+- **One verifier owns the terminal state.** Every other agent may only *propose* completion. "Unaware of termination conditions" is 12.4% of failures, and both winning topology interventions in the study reduce to this single rule.
+- **Set a hard iteration cap, and log cap-exhaustion as its own outcome — never as success.** Silent overrun reads as completion.
+- **Read a completed-steps record before acting.** Step repetition is the single most common failure mode (**15.7%**). The ledger (`skills/openrouter/ledger`) is the substrate: write the plan there before spawning anything, and have each packet name what is already done.
+- **Fix prompts and role specs before you touch topology.** Measured head-to-head, the prompt fix beat the topology change (89.75 vs 85.50, and the topology gain was not statistically significant); a role-spec fix alone was worth +9.4pp.
+- **Never chain workers linearly.** With one faulty agent, linear topologies degrade **−23.7%** vs hierarchical **−5.5%** — every producer should report into a reviewing parent (you), not into the next producer's input. A dedicated reviewer of inter-agent output recovers 67–74% of what a faulty agent costs.
+- **Scale verification effort to task difficulty**, and cap verifier input size — per-trace verification cost varied ~11× in the study.
+
 ## Anti-patterns
 
 - Delegating a decision, then rubber-stamping it — workers execute; you decide

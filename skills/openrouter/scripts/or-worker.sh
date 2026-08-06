@@ -152,8 +152,19 @@ CARD_STATUS=0
 if [ -n "$PRE_TREE" ]; then
   POST_TREE="$("$EVIDENCE" snapshot "$RUN_DIR" 2>/dev/null || true)"
   if [ -n "$POST_TREE" ]; then
+    # Pull the worker's OWN claimed paths out of its report so the card can score
+    # report_fidelity — the signal that catches "no other files touched" while
+    # three were modified. Without this the fidelity check is dead code.
+    # The report is the last stream-json result frame; workers are asked to cite
+    # changes as `path:line`, so take the leading path token of each such cite.
+    CLAIMED="$(jq -rR 'fromjson? | objects | select(.type == "result") | .result // ""' <"$LOG" 2>/dev/null \
+      | grep -oE '(^|[[:space:]`("'"'"'])[A-Za-z0-9._/-]+\.[A-Za-z0-9]+:[0-9]+' \
+      | sed -E 's/^[[:space:]`("'"'"']//; s/:[0-9]+$//' \
+      | sort -u | paste -sd: - || true)"
+
     card_args=(card --dir "$RUN_DIR" --pre "$PRE_TREE" --post "$POST_TREE" --log "$LOG")
     [ -n "${OR_SCOPE:-}" ] && card_args+=(--scope "$OR_SCOPE")
+    [ -n "$CLAIMED" ] && card_args+=(--claimed "$CLAIMED")
     "$EVIDENCE" "${card_args[@]}" >&2 || CARD_STATUS=$?
     if [ "$CARD_STATUS" -ge 2 ]; then
       echo "^^ CRITICAL evidence — review before merging this worker's output." >&2
