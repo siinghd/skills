@@ -95,6 +95,10 @@ to_json_array() {
 snap_tree() {
   local dir="$1" idx tree rc=0
   idx="$(mktemp "${TMPDIR:-/tmp}/or-ev-idx.XXXXXX")"
+  # mktemp leaves a 0-byte file, which git rejects as a corrupt index on a repo
+  # with no commits (read-tree HEAD fails, so nothing ever initialises it).
+  # Removing it lets git create a fresh index; the path is still ours.
+  rm -f "$idx"
   GIT_INDEX_FILE="$idx" git -C "$dir" read-tree HEAD 2>/dev/null || true
   GIT_INDEX_FILE="$idx" git -C "$dir" add -A >/dev/null 2>&1 || rc=$?
   if [ "$rc" -ne 0 ]; then
@@ -115,17 +119,24 @@ snap_tree() {
 # matches docs/x.md. Consequence worth knowing: a bare directory name does not
 # match its contents — write 'dir/**', not 'dir'.
 matches_scope() {
-  local p="$1" pat
+  local p="$1" pat rc=1 reglob=
+  # An unquoted word in a `for` list undergoes word-splitting AND pathname
+  # expansion. Without `set -f` bash expands 'src/**' against the CURRENT
+  # DIRECTORY first, so the pattern list becomes real filenames and the verdict
+  # depends on the cwd — the caller cd's into the repo, so it always fired,
+  # reporting in-scope work as out_of_scope. Disable globbing for the split
+  # only; `[[ == ]]` still pattern-matches because its RHS is unquoted.
+  case "$-" in *f*) ;; *) reglob=1 ;; esac
+  set -f
   local IFS=':'
-  # Word-splitting on ':' here is intentional; $SCOPE is the colon-separated
-  # pattern list and the patterns must stay unquoted to be globs, not literals.
   # shellcheck disable=SC2086
   for pat in $SCOPE; do
     [ -n "$pat" ] || continue
     # shellcheck disable=SC2053
-    if [[ "$p" == $pat ]]; then return 0; fi
+    if [[ "$p" == $pat ]]; then rc=0; break; fi
   done
-  return 1
+  [ -z "$reglob" ] || set +f
+  return $rc
 }
 
 # --- main ------------------------------------------------------------------

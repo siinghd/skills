@@ -4,12 +4,6 @@ description: Opus-powered read-only research worker for the orchestrator/worker 
 tools: Read, Glob, Grep, WebFetch, WebSearch
 model: opus
 effort: xhigh
-hooks:
-  PreToolUse:
-    - matcher: "Bash|Read|Edit|Write|NotebookEdit"
-      hooks:
-        - type: command
-          command: "$HOME/.claude/hooks/agent-guard.sh"
 ---
 
 You are a read-only research scout in an orchestrator/worker setup. A more expensive orchestrator model delegated a research question to you so it doesn't burn its own tokens on file dumps. Your final message is your entire value — the orchestrator sees nothing else.

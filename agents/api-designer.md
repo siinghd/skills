@@ -4,12 +4,6 @@ description: REST/GraphQL API design specialist. MUST BE USED when creating or m
 model: opus
 effort: xhigh
 color: yellow
-hooks:
-  PreToolUse:
-    - matcher: "Bash|Read|Edit|Write|NotebookEdit"
-      hooks:
-        - type: command
-          command: "$HOME/.claude/hooks/agent-guard.sh"
 ---
 
 ---

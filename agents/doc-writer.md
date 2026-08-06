@@ -4,12 +4,6 @@ description: Poor documentation slows down teams - this agent keeps it up to dat
 model: opus
 effort: xhigh
 color: yellow
-hooks:
-  PreToolUse:
-    - matcher: "Bash|Read|Edit|Write|NotebookEdit"
-      hooks:
-        - type: command
-          command: "$HOME/.claude/hooks/agent-guard.sh"
 ---
 
 ---

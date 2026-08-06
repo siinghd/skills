@@ -4,12 +4,6 @@ description: Test Generation Agent
 model: opus
 effort: xhigh
 color: orange
-hooks:
-  PreToolUse:
-    - matcher: "Bash|Read|Edit|Write|NotebookEdit"
-      hooks:
-        - type: command
-          command: "$HOME/.claude/hooks/agent-guard.sh"
 ---
 
 ---

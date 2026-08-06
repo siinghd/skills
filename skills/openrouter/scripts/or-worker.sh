@@ -18,6 +18,9 @@
 #   -n  max agent turns (default: 50)
 #   -e  effort level: low|medium|high|xhigh|max (default: $OR_WORKER_EFFORT or max)
 #   -l  run label used in the live-log filename (default: worker)
+#   -s  colon-separated scope globs the packet authorises, e.g. 'src/**:*.md'.
+#       Any file changed outside them is reported as out_of_scope (FAIL). Also
+#       settable via $OR_SCOPE. Omit to skip the scope check entirely.
 #   -y  bypass permissions (default: acceptEdits — file edits allowed, Bash
 #       blocked). Even with -y, the deny rules in worker-settings.json still
 #       apply (secrets, DB clients, destructive git, network).
@@ -34,6 +37,7 @@
 # .num_turns.
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 RUNS_DIR="$SKILL_DIR/runs"
 PORT="${OR_PROXY_PORT:-4141}"
@@ -53,10 +57,11 @@ RESUME=""
 EFFORT="${OR_WORKER_EFFORT:-max}"
 LABEL="worker"
 
-while getopts "m:d:n:r:e:l:wy" opt; do
+while getopts "m:d:n:r:e:l:s:wy" opt; do
   case "$opt" in
     m) MODEL="$OPTARG" ;;
     d) WORKDIR="$OPTARG" ;;
+    s) OR_SCOPE="$OPTARG" ;;
     n) MAX_TURNS="$OPTARG" ;;
     r) RESUME="$OPTARG" ;;
     e) EFFORT="$OPTARG" ;;
@@ -67,6 +72,11 @@ while getopts "m:d:n:r:e:l:wy" opt; do
   esac
 done
 shift $((OPTIND - 1))
+
+# Absolutize before anything cd's: a relative -d silently broke the evidence
+# card (and with it every tamper signal) while the run still reported success.
+[ -d "$WORKDIR" ] || { echo "ERROR: workdir does not exist: $WORKDIR" >&2; exit 2; }
+WORKDIR="$(cd "$WORKDIR" && pwd)"
 
 packet_src="${1:--}"
 if [ "$packet_src" = "-" ]; then
@@ -119,7 +129,8 @@ extra_args=()
 # detectable: a file the worker reverts leaves the dirty set, so `git status`
 # afterwards shows nothing missing — only a pre/post tree comparison sees it.
 # Non-git workdirs are supported (no evidence, but the run still works).
-EVIDENCE="$(dirname "$0")/or-evidence.sh"
+EVIDENCE="$SCRIPT_DIR/or-evidence.sh"
+LEDGER="$SKILL_DIR/ledger/led.py"
 PRE_TREE=""
 if [ -x "$EVIDENCE" ] && git -C "$RUN_DIR" rev-parse --git-dir >/dev/null 2>&1; then
   PRE_TREE="$("$EVIDENCE" snapshot "$RUN_DIR" 2>/dev/null || true)"
@@ -154,6 +165,12 @@ env -u ANTHROPIC_API_KEY -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT -u OPENROUTER_A
 CARD_STATUS=0
 if [ -n "$PRE_TREE" ]; then
   POST_TREE="$("$EVIDENCE" snapshot "$RUN_DIR" 2>/dev/null || true)"
+  if [ -z "$POST_TREE" ]; then
+    # A missing card must never read as a clean card: every tamper signal
+    # (reverted files, deletions, fidelity) is derived from it.
+    echo "EVIDENCE UNAVAILABLE — post-run snapshot failed for $RUN_DIR." >&2
+    echo "  Nothing was verified. Inspect this run manually before trusting it." >&2
+  fi
   if [ -n "$POST_TREE" ]; then
     # Pull the worker's OWN claimed paths out of its report so the card can score
     # report_fidelity — the signal that catches "no other files touched" while
@@ -168,6 +185,21 @@ if [ -n "$PRE_TREE" ]; then
     card_args=(card --dir "$RUN_DIR" --pre "$PRE_TREE" --post "$POST_TREE" --log "$LOG")
     [ -n "${OR_SCOPE:-}" ] && card_args+=(--scope "$OR_SCOPE")
     [ -n "$CLAIMED" ] && card_args+=(--claimed "$CLAIMED")
+
+    # Record the card in the ledger as harness-collected evidence, so a later
+    # verifier (or the orchestrator, or another agent) can read what actually
+    # happened without re-deriving it. Best-effort: the ledger is an audit
+    # trail, never a gate — its absence must not fail a run.
+    if [ -x "$LEDGER" ] || [ -f "$LEDGER" ]; then
+      CARD_JSON="$("$EVIDENCE" "${card_args[@]}" --json 2>/dev/null || true)"
+      if [ -n "$CARD_JSON" ]; then
+        printf '%s' "$CARD_JSON" > "$RUNS_DIR/.card-$$.json"
+        python3 "$LEDGER" evidence put --task "${OR_TASK:-$LABEL}" --run "$LABEL-$$" \
+          --kind card --payload-file "$RUNS_DIR/.card-$$.json" \
+          --idem "card-$LABEL-$$" >/dev/null 2>&1 || true
+        rm -f "$RUNS_DIR/.card-$$.json"
+      fi
+    fi
     "$EVIDENCE" "${card_args[@]}" >&2 || CARD_STATUS=$?
     if [ "$CARD_STATUS" -ge 2 ]; then
       echo "^^ CRITICAL evidence — review before merging this worker's output." >&2

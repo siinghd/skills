@@ -4,12 +4,6 @@ description: Security is critical but often an afterthought - make it proactive.
 model: opus
 effort: xhigh
 color: red
-hooks:
-  PreToolUse:
-    - matcher: "Bash|Read|Edit|Write|NotebookEdit"
-      hooks:
-        - type: command
-          command: "$HOME/.claude/hooks/agent-guard.sh"
 ---
 
 ---

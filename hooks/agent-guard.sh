@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # agent-guard.sh — PreToolUse guard for implementation subagents.
 #
-# Wired into an agent definition's `hooks:` frontmatter, NOT into global
-# settings, so it constrains only the agents that opt in — the orchestrator
-# (main session) keeps full access. Verified enforced even under
-# --permission-mode bypassPermissions.
+# Registered ONCE, globally, in ~/.claude/settings.json (setup.sh does this).
+# It still constrains only subagents: it returns 0 immediately when the hook
+# payload carries no `agent_type`, which is the main session's signature, so the
+# orchestrator keeps full access. Global registration is deliberate — it also
+# covers agents added later, which per-agent frontmatter would miss.
+# Verified enforced even under --permission-mode bypassPermissions.
 #
 # Blocks two classes of action, both of which have caused real damage:
 #   1. Destructive git — a worker seeing a peer's concurrent edits mistakes them
@@ -65,10 +67,20 @@ EOF
       exit 2
     fi
 
-    # Reading a secret through a shell command rather than the Read tool.
-    if printf '%s' "$cmd" | grep -qE '\b(cat|less|more|head|tail|bat|strings|xxd|od|grep|rg|ag|awk|sed|cp|scp|curl|source|\.)\b' \
-       && printf '%s' "$cmd" | grep -qE "$secret_cmd_re"; then
+    # Any mention of a secret-bearing path in a command. Deliberately NOT gated
+    # on a reader-verb list: `python3 -c "open('.env').read()"`, `dd if=.env`,
+    # `tar cf - .env` and any other interpreter defeat such a list. Naming the
+    # path at all is the trigger; a worker has no legitimate reason to.
+    if printf '%s' "$cmd" | grep -qE "$secret_cmd_re"; then
       echo "BLOCKED by agent-guard (agent_type=$agent): that path holds credentials. Ask the orchestrator for a sanitized value and report a blocker." >&2
+      exit 2
+    fi
+
+    # Database and cloud CLIs. Mirrors worker-settings.json, which covers the
+    # headless workers that never see this hook — the two must stay in step or
+    # the docs over-claim for one tier.
+    if printf '%s' "$cmd" | grep -qE '(^|[;&|(]|\s)(psql|mysql|mysqldump|mongosh|mongo|redis-cli|sqlite3|pg_dump|pg_restore|heroku|aws|az|gcloud|gh|kubectl|terraform)\b'; then
+      echo "BLOCKED by agent-guard (agent_type=$agent): database and cloud CLIs are not available to workers. If the task needs data from one, report a blocker and the orchestrator will supply it." >&2
       exit 2
     fi
     ;;

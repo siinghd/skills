@@ -4,12 +4,6 @@ description: This saves hours of debugging pipeline issues.
 model: opus
 effort: xhigh
 color: pink
-hooks:
-  PreToolUse:
-    - matcher: "Bash|Read|Edit|Write|NotebookEdit"
-      hooks:
-        - type: command
-          command: "$HOME/.claude/hooks/agent-guard.sh"
 ---
 
 ---

@@ -4,12 +4,6 @@ description: Production error diagnosis specialist. MUST BE USED when investigat
 model: opus
 effort: xhigh
 color: blue
-hooks:
-  PreToolUse:
-    - matcher: "Bash|Read|Edit|Write|NotebookEdit"
-      hooks:
-        - type: command
-          command: "$HOME/.claude/hooks/agent-guard.sh"
 ---
 
 ---

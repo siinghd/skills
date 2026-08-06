@@ -154,10 +154,29 @@ def openrouter_worker_check(label: str = "desktop") -> str:
             line = f.read().strip().splitlines()[-1]
         try:
             r = json.loads(line)
+            # The worker's own report is untrusted — returning it alone would
+            # hand Desktop-Claude a self-assessment and silently drop the
+            # harness-collected evidence, including CRITICAL findings such as a
+            # destroyed peer file. Surface both, evidence first.
+            card = ""
+            if os.path.exists(err_path):
+                with open(err_path, errors="replace") as f:
+                    err = f.read()
+                if "EVIDENCE CARD" in err:
+                    card = err[err.index("EVIDENCE CARD"):][:4000]
+                elif "EVIDENCE UNAVAILABLE" in err:
+                    card = "EVIDENCE UNAVAILABLE — nothing was verified for this run."
             return json.dumps(
                 {
                     "status": r.get("subtype", "done"),
-                    "report": r.get("result"),
+                    "evidence_card": card or "(no card — workdir is not a git repo)",
+                    "evidence_verdict": (
+                        "CRITICAL" if "VERDICT: CRITICAL" in card
+                        else "FAIL" if "VERDICT: FAIL" in card
+                        else "PASS" if "VERDICT: PASS" in card
+                        else "unknown"
+                    ),
+                    "report_untrusted": r.get("result"),
                     "session_id": r.get("session_id"),
                     "cost_usd": r.get("total_cost_usd"),
                     "turns": r.get("num_turns"),

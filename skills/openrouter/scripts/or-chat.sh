@@ -100,7 +100,10 @@ case "$cmd" in
 
     if ! jq -e . <<<"$response" >/dev/null 2>&1; then
       echo "OPENROUTER ERROR: non-JSON response (gateway/proxy error?):" >&2
-      printf '%s' "$response" | head -c 300 >&2; echo >&2
+      # Substring rather than `| head -c`: head closes the pipe early, killing
+      # printf with SIGPIPE, and under pipefail the script then exits 141
+      # instead of the documented 1.
+      printf '%s\n' "${response:0:300}" >&2
       exit 1
     fi
     if err="$(jq -er '.error.message // (.error | strings)' <<<"$response" 2>/dev/null)"; then
