@@ -122,7 +122,7 @@ else
     cp "$SETTINGS_FILE" "$SETTINGS_FILE.bak-$(date +%Y%m%d-%H%M%S)"
     jq '.hooks.PreToolUse = ((.hooks.PreToolUse // []) + [{"matcher":"Bash|Read|Edit|Write|NotebookEdit","hooks":[{"type":"command","command":"~/.claude/hooks/agent-guard.sh"}]}])' \
       "$SETTINGS_FILE" > "$SETTINGS_FILE.tmp" && mv "$SETTINGS_FILE.tmp" "$SETTINGS_FILE"
-    ok "registered in settings.json (restart Claude Code — hooks load at session start)"
+    ok "registered in settings.json (takes effect immediately; restart Claude Code only if it does not fire)"
   fi
 fi
 

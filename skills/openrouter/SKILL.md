@@ -20,7 +20,7 @@ Sanity check: `$OR/or-chat.sh key-check` (prints label + usage on success).
 ```bash
 ~/.claude/skills/openrouter/setup.sh sk-or-v1-<key> --model '~deepseek/deepseek-v4-flash-latest'
 ```
-Idempotent; both arguments optional after the first run. It checks dependencies, stores the key in the OS keyring, records the model default, starts the gateway, initialises the ledger, registers the subagent guard hook, and registers the Claude Desktop MCP server. **Restart Claude Code afterwards** — hooks load at session start.
+Idempotent; both arguments optional after the first run. It checks dependencies, stores the key in the OS keyring, records the model default, starts the gateway, initialises the ledger, registers the subagent guard hook, and registers the Claude Desktop MCP server. The guard takes effect immediately (verified mid-session); only **Claude Desktop** needs a full restart, to pick up the MCP server.
 
 ## Choosing a model
 
