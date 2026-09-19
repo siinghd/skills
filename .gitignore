@@ -3,3 +3,4 @@ skills/openrouter/.proxy.log
 skills/openrouter/.proxy.pid
 skills/openrouter/config.env
 skills/openrouter/runs/
+__pycache__/
