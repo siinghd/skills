@@ -55,8 +55,30 @@ SMALL_MODEL="${OR_SMALL_MODEL:-~deepseek/deepseek-v4-flash-latest}"
 SETTINGS="${OR_WORKER_SETTINGS:-$SKILL_DIR/worker-settings.json}"
 WORKDIR="$PWD"
 WORKTREE=false
-MAX_TURNS="50"
+MAX_TURNS="200"
 PERMISSION_MODE="acceptEdits"
+
+# Edit-first discipline, appended to the worker's system prompt.
+#
+# WHY: every observed worker failure had the same signature — the run was killed
+# by the dispatcher's wall-clock timeout having made ZERO Edit/Write calls,
+# after spending its whole budget on Read and rg. Three runs died at 11, 19 and
+# 39 turns (well under the turn cap) having only explored; the one that landed
+# went almost straight to editing. The turn cap was never the binding
+# constraint — exploration with no stopping rule was. An interrupted run that
+# wrote nothing is a total loss, so the incentive has to be stated explicitly.
+#
+# Override with OR_WORKER_APPEND_PROMPT; set it empty to disable.
+DEFAULT_APPEND_PROMPT='You are an IMPLEMENTER on a hard wall-clock budget. Your run is judged on correct edits that LAND, never on understanding gained. A run killed mid-exploration having written nothing is a total loss; partial correct edits survive and are useful.
+
+Rules:
+1. Make your first Edit or Write within your first 8 tool calls. If you reach 10 calls with no edit, STOP exploring and make the smallest correct edit you can, then iterate.
+2. Read only what your packet names, and only the line ranges it names. Never read the same file twice — you already have it.
+3. NEVER read a file over ~500 lines in full. Use rg to find the exact anchor line, then Read with offset/limit around it. Reading a 3000-line file costs minutes per call and is the single most common way these runs die.
+4. Prefer several small, targeted Edit calls over one large rewrite. Each landed edit is banked progress.
+5. Run verification (typecheck/tests) ONCE, at the end. Do not re-run it between edits.
+6. If the packet asks you to "verify" or "audit" something before editing, timebox that to 3 tool calls, then start editing with what you know and note any uncertainty in your report.'
+APPEND_PROMPT="${OR_WORKER_APPEND_PROMPT-$DEFAULT_APPEND_PROMPT}"
 RESUME=""
 EFFORT="${OR_WORKER_EFFORT:-max}"
 LABEL="worker"
@@ -129,6 +151,7 @@ fi
 
 extra_args=()
 [ -n "$RESUME" ] && extra_args+=(--resume "$RESUME")
+[ -n "$APPEND_PROMPT" ] && extra_args+=(--append-system-prompt "$APPEND_PROMPT")
 
 # Snapshot the tree BEFORE the worker runs. This is what makes destroyed work
 # detectable: a file the worker reverts leaves the dirty set, so `git status`
