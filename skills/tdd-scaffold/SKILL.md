@@ -12,4 +12,4 @@ We are using Test-Driven Development for the feature: "$ARGUMENTS".
 2.  Create a shell implementation file at `src/features/$ARGUMENTS.ts` with placeholder functions that throw `new Error('Not implemented')`.
 3.  Use the `Write` tool to create these two files.
 
-You are explicitly forbidden from writing any implementation logic in this step. The tests MUST fail.
+Write no implementation logic in this step: the tests should fail against the stub, which is how TDD confirms they test real behavior.

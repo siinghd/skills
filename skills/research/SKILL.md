@@ -65,7 +65,7 @@ with `bin/collect.sh` before anything else. Never re-run something already logge
    IDEAS.md Killed with the mechanistic reason.
 10. **Decide** — win: scale or generalize. Kill with lesson: the lesson is the next hypothesis.
     5 kills with no learning → pivot proposal to QUESTIONS.md. Overwrite STATE.md. Report to
-    the human in ≤10 lines: tested, happened, confidence, next. Then go again.
+    the human briefly: tested, happened, confidence, next. Then go again.
 
 ## Cost pattern
 Literature search and log-file digging go to `scout`; code packets with a precise spec go to

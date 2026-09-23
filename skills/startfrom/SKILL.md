@@ -37,7 +37,7 @@ If `$ARGUMENTS` looks like a path ending in `.md`, use that as the output file p
 
 <procedure>
 
-## Step 1 — Reflect on the conversation (think hard, do not skip)
+## Step 1 — Reflect on the conversation
 
 Before writing anything, internally scan the **entire conversation** and answer these questions to yourself:
 
@@ -190,7 +190,6 @@ To resume in a fresh session, /clear and then paste this as your first message:
 - **Do not invent facts.** If something wasn't established, mark it unknown.
 - **Do not commit the file** unless the user explicitly asks. Just write it.
 - **Do not modify CLAUDE.md, MEMORY.md, or any other file** — only write the handoff.
-- **Do not ever include** `Co-Authored-By: Claude <noreply@anthropic.com>`.
 - If the working directory is not a git repository, skip git-state lines and note `Not a git repository` in the Current state section.
 - If the conversation is short or trivial (no real work was done), tell the user that a handoff isn't necessary rather than writing a thin one.
 </rules>

@@ -13,6 +13,3 @@ Creating a save point. The commit message will be: "CHECKPOINT: $ARGUMENTS".
 3.  `git commit -m "CHECKPOINT: $ARGUMENTS"`
 
 Propose the `Bash` tool calls to perform these actions.
-
-Do not ever include:
-Co-Authored-By: Claude <noreply@anthropic.com>

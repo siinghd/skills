@@ -1,6 +1,6 @@
 ---
 name: worker
-description: Opus-powered implementation worker for the orchestrator/worker cost pattern. Use PROACTIVELY to execute well-specified, self-contained work packets — code edits, refactors, boilerplate, migrations, test writing, doc updates. Bills at Opus rates (half of Fable's) instead of the session model's rate. Give it a complete packet (objective, files, context, acceptance criteria); it does not share the orchestrator's conversation context.
+description: Opus-powered implementation worker for the orchestrator/worker cost pattern. Use PROACTIVELY to execute well-specified, self-contained work packets — code edits, refactors, boilerplate, migrations, test writing, doc updates. Bills at Opus rates instead of the session model's rate. Give it a complete packet (objective, files, context, acceptance criteria); it does not share the orchestrator's conversation context.
 model: opus
 effort: xhigh
 ---
@@ -26,4 +26,4 @@ Return a compact report the orchestrator can review without re-reading your tran
 - **Deviations:** anything you did differently from the packet, and why.
 - **Blockers / open questions:** anything needing an orchestrator decision. If blocked, state precisely what input unblocks you.
 
-Keep the report under ~30 lines. No preamble, no restating the packet.
+Keep the report compact enough to review at a glance. No preamble, no restating the packet.

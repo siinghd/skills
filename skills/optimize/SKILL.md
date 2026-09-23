@@ -32,9 +32,9 @@ Output a one-line summary up front: `Stack: <lang(s)> · <frameworks> · <bundle
 
 ### Dispatch strategy depends on scope size
 
-- **≤ 30 files (working-set scope, typical case)** → fan out **by file bucket**, not by category. Group the file list into ~5 roughly-balanced buckets. Spawn one `Explore` sub-agent per bucket; each reads its files **once** and runs **all applicable categories** on them in a single pass. This is the "in one go" mode — patterns are evaluated against surrounding code, each file is read once, false positives drop sharply.
+- **≤ 30 files (working-set scope, typical case)** → fan out **by file bucket**, not by category. Group the file list into ~5 roughly-balanced buckets. Spawn one `general-purpose` sub-agent per bucket, told to stay read-only; each reads its files **once** and runs **all applicable categories** on them in a single pass. This is the "in one go" mode — patterns are evaluated against surrounding code, each file is read once, false positives drop sharply.
 
-- **> 30 files (repo scope, large globs)** → fan out **by category**. Spawn one `Explore` sub-agent per applicable category; each scans the full file list looking for its specific patterns. Trades context for search throughput at scale.
+- **> 30 files (repo scope, large globs)** → fan out **by category**. Spawn one `general-purpose` sub-agent (read-only) per applicable category; each scans the full file list looking for its specific patterns. Trades context for search throughput at scale.
 
 Both modes dispatch in a **single message with multiple `Agent` tool calls** so they run concurrently. Wall-clock is bounded by the slowest bucket/category, not the sum.
 
@@ -106,10 +106,10 @@ Evidence quote, `harm:`, and `fix:` are all required. A finding missing any of t
 After sub-agents return, run **one validation pass** to clean the aggregated list:
 
 1. **De-dup** by `file:line` — drop duplicates across categories (e.g. concurrency and logic both flagged the same race). Keep the one whose category owns it per the ownership table; tie-break on higher confidence.
-2. **Drop low-confidence** by default — `confidence: low` findings are hidden. At the end, print one line: `Suppressed N low-confidence findings — pass --show-low to see them.` (no implementation needed for the flag, just signal the count exists).
+2. **Drop low-confidence** by default — `confidence: low` findings are hidden. At the end, print one line: `Suppressed N low-confidence findings.`
 3. **Sanity-check harm** — for each finding, does the `harm:` line concretely follow from the evidence? Drop generic harms ("could cause bugs", "may not scale", "potential issue") that don't tie to the code.
 4. **Sort within category** by impact desc, then confidence desc.
-5. Apply per-category cap (top 15) and the >50-total summary mode.
+5. Apply the per-category cap (top 15).
 6. Print: stack line, scope line, then each category in stable order (logic → abstractions → security → types → concurrency → observability → tests → performance → rerenders → effects → memory → scalability → deadcode → bundle). Skip categories that produced no findings or are stack-inapplicable.
 
 The audit applies to any code — frontend, backend, CLIs, libraries, scripts. Skip categories that don't apply to the detected stack (e.g. no React → skip rerenders/effects; no bundler → skip bundle). Apply the general categories (logic, abstractions, security, performance, memory, scalability, deadcode) to every codebase.
