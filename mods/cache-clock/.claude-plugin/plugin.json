@@ -1,0 +1,1 @@
+{ "name": "cache-clock", "version": "0.1.0", "description": "Status-line countdown to prompt-cache expiry; auto-compacts when 5 minutes remain." }
