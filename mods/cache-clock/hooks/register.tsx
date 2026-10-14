@@ -63,15 +63,17 @@ export const register: Register = on => {
     return next(e)
   })
 
+  // On failure the hook counts as absent, so the countdown never blocks a
+  // prompt or tool call.
   on('prompt.submit', async ($, e, next) => {
     lastTouch = await $.clock.now()
     hasCompactedThisWindow = false
     return next(e)
-  })
+  }).catch(() => undefined)
 
   on('tool.call', async ($, e, next) => {
     lastTouch = await $.clock.now()
     hasCompactedThisWindow = false
     return next(e)
-  })
+  }).catch(() => undefined)
 }
