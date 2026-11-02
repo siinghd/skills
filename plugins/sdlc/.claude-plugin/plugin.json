@@ -1,0 +1,9 @@
+{
+  "name": "sdlc",
+  "displayName": "SDLC Loop",
+  "version": "0.1.0",
+  "description": "Intent → plan → build → PR with committed artifacts. Code edits stay blocked until the owner approves the plan on Desk, and an approval stops counting if the plan changes.",
+  "author": {
+    "name": "Harpreet Singh"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "siinghd-skills",
+  "owner": {
+    "name": "siinghd"
+  },
+  "plugins": [
+    {
+      "name": "sdlc",
+      "source": "./plugins/sdlc",
+      "description": "Intent → plan → build → PR, with code edits blocked until the owner approves the plan."
+    }
+  ]
+}

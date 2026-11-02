@@ -1,0 +1,27 @@
+{
+  "description": "SDLC approval gate: blocks code edits until the plan is approved, and guards push, PR creation and merge.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.sh\" check-edit",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.sh\" check-ship",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
